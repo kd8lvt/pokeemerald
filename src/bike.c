@@ -44,7 +44,6 @@ static u8 AcroBike_GetJumpDirection(void);
 static void Bike_UpdateDirTimerHistory(u8);
 static void Bike_UpdateABStartSelectHistory(u8);
 static u8 Bike_DPadToDirection(u16);
-static u8 GetBikeCollision(u8);
 static u8 GetBikeCollisionAt(struct ObjectEvent *, s16, s16, u8, u8);
 static bool8 IsRunningDisallowedByMetatile(u8);
 static void Bike_TryAdvanceCyclingRoadCollisions();
@@ -198,6 +197,15 @@ static void MachBikeTransition_TurnDirection(u8 direction)
     }
 }
 
+static void MachBikeTransition_TrySpeedUp_Move(u8 direction)
+{
+    // we did not hit anything that can slow us down, so perform the advancement callback depending on the bikeFrameCounter and try to increase the mach bike's speed.
+    sMachBikeSpeedCallbacks[gPlayerAvatar.bikeFrameCounter](direction);
+    gPlayerAvatar.bikeSpeed = gPlayerAvatar.bikeFrameCounter + (gPlayerAvatar.bikeFrameCounter >> 1); // same as dividing by 2, but compiler is insistent on >> 1
+    if (gPlayerAvatar.bikeFrameCounter < 2) // do not go faster than the last element in the mach bike array
+        gPlayerAvatar.bikeFrameCounter++;
+}
+
 static void MachBikeTransition_TrySpeedUp(u8 direction)
 {
     struct ObjectEvent *playerObjEvent = &gObjectEvents[gPlayerAvatar.objectEventId];
@@ -224,22 +232,37 @@ static void MachBikeTransition_TrySpeedUp(u8 direction)
             else
             {
                 // we hit a solid object that is not a ledge, so perform the collision.
-                Bike_SetBikeStill();
                 if (collision == COLLISION_OBJECT_EVENT && IsPlayerCollidingWithFarawayIslandMew(direction))
+                {
+                    Bike_SetBikeStill();
                     PlayerOnBikeCollideWithFarawayIslandMew(direction);
-                else if (collision < COLLISION_STOP_SURFING || collision > COLLISION_ROTATING_GATE)
-                    PlayerOnBikeCollide(direction);
+                }
+                else if (collision <= COLLISION_OBJECT_EVENT || collision >= COLLISION_WHEELIE_HOP)
+                {
+                    u8 newDirection = PlayerTryAdjustDirection(direction, TRUE);
+
+                    if (direction == newDirection)
+                    {
+                        Bike_SetBikeStill();
+                        PlayerOnBikeCollide(direction);
+                    }
+                    else
+                    {
+                        MachBikeTransition_TrySpeedUp_Move(newDirection);
+                    }
+                }
             }
         }
         else
         {
-            // we did not hit anything that can slow us down, so perform the advancement callback depending on the bikeFrameCounter and try to increase the mach bike's speed.
-            sMachBikeSpeedCallbacks[gPlayerAvatar.bikeFrameCounter](direction);
-            gPlayerAvatar.bikeSpeed = gPlayerAvatar.bikeFrameCounter + (gPlayerAvatar.bikeFrameCounter >> 1); // same as dividing by 2, but compiler is insistent on >> 1
-            if (gPlayerAvatar.bikeFrameCounter < 2) // do not go faster than the last element in the mach bike array
-                gPlayerAvatar.bikeFrameCounter++;
+            MachBikeTransition_TrySpeedUp_Move(direction);
         }
     }
+}
+
+static void MachBikeTransition_TrySlowDown_Move(u8 direction)
+{
+    sMachBikeSpeedCallbacks[gPlayerAvatar.bikeFrameCounter](direction);
 }
 
 static void MachBikeTransition_TrySlowDown(u8 direction)
@@ -259,16 +282,27 @@ static void MachBikeTransition_TrySlowDown(u8 direction)
         }
         else
         {
-            Bike_SetBikeStill();
             if (collision == COLLISION_OBJECT_EVENT && IsPlayerCollidingWithFarawayIslandMew(direction))
+            {
+                Bike_SetBikeStill();
                 PlayerOnBikeCollideWithFarawayIslandMew(direction);
-            else if (collision < COLLISION_STOP_SURFING || collision > COLLISION_ROTATING_GATE)
-                PlayerOnBikeCollide(direction);
+            }
+            else if (collision <= COLLISION_OBJECT_EVENT || collision >= COLLISION_WHEELIE_HOP)
+            {
+                u8 newDirection = PlayerTryAdjustDirection(direction, TRUE);
+                if (direction == newDirection)
+                {
+                    Bike_SetBikeStill();
+                    PlayerOnBikeCollide(direction);
+                }
+                else
+                    MachBikeTransition_TrySlowDown_Move(direction);
+            }
         }
     }
     else
     {
-        sMachBikeSpeedCallbacks[gPlayerAvatar.bikeFrameCounter](direction);
+        MachBikeTransition_TrySlowDown_Move(direction);
     }
 }
 
@@ -558,8 +592,14 @@ static void AcroBikeTransition_Moving(u8 direction)
             PlayerJumpLedge(direction);
         else if (collision == COLLISION_OBJECT_EVENT && IsPlayerCollidingWithFarawayIslandMew(direction))
             PlayerOnBikeCollideWithFarawayIslandMew(direction);
-        else if (collision < COLLISION_STOP_SURFING || collision > COLLISION_ROTATING_GATE)
-            PlayerOnBikeCollide(direction);
+        else if (collision <= COLLISION_OBJECT_EVENT || collision >= COLLISION_WHEELIE_HOP)
+        {
+            u8 newDirection = PlayerTryAdjustDirection(direction, TRUE);
+            if (direction == newDirection)
+                PlayerOnBikeCollide(direction);
+            else
+                PlayerRideWaterCurrent(newDirection);
+        }
     }
     else
     {
@@ -861,7 +901,7 @@ static u8 Bike_DPadToDirection(u16 heldKeys)
     return DIR_NONE;
 }
 
-static u8 GetBikeCollision(u8 direction)
+u8 GetBikeCollision(u8 direction)
 {
     u8 metatitleBehavior;
     struct ObjectEvent *playerObjEvent = &gObjectEvents[gPlayerAvatar.objectEventId];

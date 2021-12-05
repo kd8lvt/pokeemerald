@@ -507,7 +507,7 @@ static void LoadSavedMapView(void)
     }
 }
 
-static void MoveMapViewToBackup(u8 direction)
+static void MoveMapViewToBackup(u8 direction, s8 xOffset, s8 yOffset)
 {
     int width;
     u16 *mapView;
@@ -529,18 +529,22 @@ static void MoveMapViewToBackup(u8 direction)
     switch (direction)
     {
     case CONNECTION_NORTH:
+        x0 -= xOffset;
         y0 += 1;
         y2 = MAP_OFFSET_H - 1;
         break;
     case CONNECTION_SOUTH:
+        x0 -= xOffset;
         r8 = 1;
         y2 = MAP_OFFSET_H - 1;
         break;
     case CONNECTION_WEST:
+        y0 -= yOffset;
         x0 += 1;
         x2 = MAP_OFFSET_W - 1;
         break;
     case CONNECTION_EAST:
+        y0 -= yOffset;
         r9 = 1;
         x2 = MAP_OFFSET_W - 1;
         break;
@@ -670,7 +674,7 @@ bool8 CameraMove(int x, int y)
         gCamera.y = old_y - gSaveBlock1Ptr->pos.y;
         gSaveBlock1Ptr->pos.x += x;
         gSaveBlock1Ptr->pos.y += y;
-        MoveMapViewToBackup(direction);
+        MoveMapViewToBackup(direction, x, y);
     }
     return gCamera.active;
 }

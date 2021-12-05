@@ -228,6 +228,10 @@ static bool8 (*const sArrowWarpMetatileBehaviorChecks[])(u8) =
     [DIR_NORTH - 1] = MetatileBehavior_IsNorthArrowWarp,
     [DIR_WEST - 1]  = MetatileBehavior_IsWestArrowWarp,
     [DIR_EAST - 1]  = MetatileBehavior_IsEastArrowWarp,
+    [DIR_SOUTHWEST - 1] = MetatileBehavior_IsSouthwestArrowWarp,
+    [DIR_SOUTHEAST - 1] = MetatileBehavior_IsSoutheastArrowWarp,
+    [DIR_NORTHWEST - 1] = MetatileBehavior_IsNorthwestArrowWarp,
+    [DIR_NORTHEAST - 1] = MetatileBehavior_IsNortheastArrowWarp,
 };
 
 static const u8 sRivalAvatarGfxIds[][2] =
@@ -284,6 +288,10 @@ static bool8 (*const sArrowWarpMetatileBehaviorChecks2[])(u8) =  //Duplicate of 
     [DIR_NORTH - 1] = MetatileBehavior_IsNorthArrowWarp,
     [DIR_WEST - 1]  = MetatileBehavior_IsWestArrowWarp,
     [DIR_EAST - 1]  = MetatileBehavior_IsEastArrowWarp,
+    [DIR_SOUTHWEST - 1] = MetatileBehavior_IsSouthwestArrowWarp,
+    [DIR_SOUTHEAST - 1] = MetatileBehavior_IsSoutheastArrowWarp,
+    [DIR_NORTHWEST - 1] = MetatileBehavior_IsNorthwestArrowWarp,
+    [DIR_NORTHEAST - 1] = MetatileBehavior_IsNortheastArrowWarp,
 };
 
 static bool8 (*const sPushBoulderFuncs[])(struct Task *, struct ObjectEvent *, struct ObjectEvent *) =
@@ -345,7 +353,8 @@ static bool8 TryInterruptObjectEventSpecialAnim(struct ObjectEvent *playerObjEve
      && !ObjectEventClearHeldMovementIfFinished(playerObjEvent))
     {
         u8 heldMovementActionId = ObjectEventGetHeldMovementActionId(playerObjEvent);
-        if (heldMovementActionId > MOVEMENT_ACTION_WALK_FAST_RIGHT && heldMovementActionId < MOVEMENT_ACTION_WALK_IN_PLACE_NORMAL_DOWN)
+        if ((heldMovementActionId >= MOVEMENT_ACTION_WALK_IN_PLACE_SLOW_DOWN && heldMovementActionId <= MOVEMENT_ACTION_WALK_IN_PLACE_SLOW_RIGHT)
+            || (heldMovementActionId >= MOVEMENT_ACTION_WALK_IN_PLACE_SLOW_SOUTHWEST && heldMovementActionId <= MOVEMENT_ACTION_WALK_IN_PLACE_SLOW_NORTHEAST))
         {
             if (direction == DIR_NONE)
             {
@@ -569,6 +578,49 @@ static bool8 ForcedMovement_MuddySlope(void)
     }
 }
 
+u8 PlayerTryAdjustDirection(u8 direction, bool8 onBike)
+{
+    u8 dir1, dir2, collision1, collision2, mb1, mb2;
+    s16 x1, y1, x2, y2;
+
+    if (!IsDirectionDiagonal(direction) || !FlagGet(FLAG_ADJUST_DIAGONAL_MOVEMENT))
+        return direction;
+
+    dir1 = gSubDirections[direction][0];
+    dir2 = gSubDirections[direction][1];
+    if (onBike)
+    {
+        collision1 = GetBikeCollision(dir1);
+        collision2 = GetBikeCollision(dir2);
+    }
+    else
+    {
+        collision1 = CheckForPlayerAvatarCollision(dir1);
+        collision2 = CheckForPlayerAvatarCollision(dir2);
+    }
+    if (collision1 && collision2)
+        return direction;
+    if (collision1)
+        return dir2;
+    if (collision2)
+        return dir1;
+
+    PlayerGetDestCoords(&x1, &y1);
+    PlayerGetDestCoords(&x2, &y2);
+    MoveCoords(dir1, &x1, &y1);
+    MoveCoords(dir2, &x2, &y2);
+    mb1 = MapGridGetMetatileBehaviorAt(x1, y1);
+    mb2 = MapGridGetMetatileBehaviorAt(x2, y2);
+    if (mb1 == mb2)
+        return direction;
+    if (MetatileBehavior_IsNonAnimDoor(mb1))
+        return dir1;
+    if (MetatileBehavior_IsNonAnimDoor(mb2))
+        return dir2;
+
+    return direction;
+}
+
 static void MovePlayerNotOnBike(u8 direction, u16 heldKeys)
 {
     sPlayerNotOnBikeFuncs[CheckMovementInputNotOnBike(direction)](direction, heldKeys);
@@ -619,12 +671,16 @@ static void PlayerNotOnBikeMoving(u8 direction, u16 heldKeys)
             PlayerNotOnBikeCollideWithFarawayIslandMew(direction);
             return;
         }
-        else
+        else if (collision <= COLLISION_OBJECT_EVENT || collision >= COLLISION_WHEELIE_HOP)
         {
-            u8 adjustedCollision = collision - COLLISION_STOP_SURFING;
-            if (adjustedCollision > 3)
+            u8 newDirection = PlayerTryAdjustDirection(direction, FALSE);
+            if (direction == newDirection)
+            {
                 PlayerNotOnBikeCollide(direction);
-            return;
+                return;
+            }
+            else
+                direction = newDirection;
         }
     }
 
@@ -678,6 +734,10 @@ u8 CheckForObjectEventCollision(struct ObjectEvent *objectEvent, s16 x, s16 y, u
 
     if (ShouldJumpLedge(x, y, direction))
     {
+        MoveCoords(direction, &x, &y);
+        collision = GetCollisionAtCoords(objectEvent, x, y, direction);
+        if (collision)
+            return collision;
         IncrementGameStat(GAME_STAT_JUMPED_DOWN_LEDGES);
         return COLLISION_LEDGE_JUMP;
     }
@@ -723,8 +783,46 @@ static bool8 CanStopSurfing(s16 x, s16 y, u8 direction)
 
 static bool8 ShouldJumpLedge(s16 x, s16 y, u8 direction)
 {
-    if (GetLedgeJumpDirection(x, y, direction) != DIR_NONE)
-        return TRUE;
+    static bool8 (*const ledgeBehaviorFuncs[])(u8) = {
+        [DIR_SOUTH - 1] = MetatileBehavior_IsJumpSouth,
+        [DIR_NORTH - 1] = MetatileBehavior_IsJumpNorth,
+        [DIR_WEST - 1]  = MetatileBehavior_IsJumpWest,
+        [DIR_EAST - 1]  = MetatileBehavior_IsJumpEast,
+    };
+
+    static bool8 (*const diagonalLedgeBehaviorFuncs[][3])(u8) = {
+        [DIR_SOUTHWEST - DIR_SOUTHWEST] = {
+            MetatileBehavior_IsJumpSouth,
+            MetatileBehavior_IsJumpWest,
+            MetatileBehavior_IsJumpSouthwest,
+        },
+        [DIR_SOUTHEAST - DIR_SOUTHWEST] = {
+            MetatileBehavior_IsJumpSouth,
+            MetatileBehavior_IsJumpEast,
+            MetatileBehavior_IsJumpSoutheast,
+        },
+        [DIR_NORTHWEST - DIR_SOUTHWEST] = {
+            MetatileBehavior_IsJumpNorth,
+            MetatileBehavior_IsJumpWest,
+            MetatileBehavior_IsJumpNorthwest,
+        },
+        [DIR_NORTHEAST - DIR_SOUTHWEST] = {
+            MetatileBehavior_IsJumpNorth,
+            MetatileBehavior_IsJumpEast,
+            MetatileBehavior_IsJumpNortheast,
+        },
+    };
+
+    u8 behavior = MapGridGetMetatileBehaviorAt(x, y);
+
+    if (direction == DIR_NONE)
+        return FALSE;
+    else if (direction <= DIR_EAST)
+        return ledgeBehaviorFuncs[direction - 1](behavior);
+    else if (direction <= DIR_NORTHEAST)
+        return diagonalLedgeBehaviorFuncs[direction - DIR_SOUTHWEST][0](behavior)
+            || diagonalLedgeBehaviorFuncs[direction - DIR_SOUTHWEST][1](behavior)
+            || diagonalLedgeBehaviorFuncs[direction - DIR_SOUTHWEST][2](behavior);
     else
         return FALSE;
 }
@@ -901,8 +999,10 @@ static bool8 PlayerAnimIsMultiFrameStationary(void)
     u8 movementActionId = gObjectEvents[gPlayerAvatar.objectEventId].movementActionId;
 
     if (movementActionId <= MOVEMENT_ACTION_FACE_RIGHT
+     || (movementActionId >= MOVEMENT_ACTION_FACE_SOUTHWEST && movementActionId <= MOVEMENT_ACTION_FACE_NORTHEAST)
      || (movementActionId >= MOVEMENT_ACTION_DELAY_1 && movementActionId <= MOVEMENT_ACTION_DELAY_16)
      || (movementActionId >= MOVEMENT_ACTION_WALK_IN_PLACE_SLOW_DOWN && movementActionId <= MOVEMENT_ACTION_WALK_IN_PLACE_FASTER_RIGHT)
+     || (movementActionId >= MOVEMENT_ACTION_WALK_IN_PLACE_SLOW_SOUTHWEST && movementActionId <= MOVEMENT_ACTION_WALK_IN_PLACE_FASTER_NORTHEAST)
      || (movementActionId >= MOVEMENT_ACTION_ACRO_WHEELIE_FACE_DOWN && movementActionId <= MOVEMENT_ACTION_ACRO_END_WHEELIE_FACE_RIGHT)
      || (movementActionId >= MOVEMENT_ACTION_ACRO_WHEELIE_IN_PLACE_DOWN && movementActionId <= MOVEMENT_ACTION_ACRO_WHEELIE_IN_PLACE_RIGHT))
         return TRUE;
@@ -1116,6 +1216,13 @@ void GetXYCoordsOneStepInFrontOfPlayer(s16 *x, s16 *y)
     *x = gObjectEvents[gPlayerAvatar.objectEventId].currentCoords.x;
     *y = gObjectEvents[gPlayerAvatar.objectEventId].currentCoords.y;
     MoveCoords(GetPlayerFacingDirection(), x, y);
+}
+
+void GetXYCoordsOneStepFromPlayer(s16 *x, s16 *y, u8 direction)
+{
+    *x = gObjectEvents[gPlayerAvatar.objectEventId].currentCoords.x;
+    *y = gObjectEvents[gPlayerAvatar.objectEventId].currentCoords.y;
+    MoveCoords(direction, x, y);
 }
 
 void PlayerGetDestCoords(s16 *x, s16 *y)
@@ -1422,23 +1529,38 @@ void SetPlayerAvatarWatering(u8 direction)
     StartSpriteAnim(&gSprites[gPlayerAvatar.spriteId], GetFaceDirectionAnimNum(direction));
 }
 
+static bool8 TryShowWarpArrow(struct ObjectEvent *objectEvent, u8 direction, u8 metatileBehavior)
+{
+    if (sArrowWarpMetatileBehaviorChecks[direction - 1](metatileBehavior))
+    {
+        s16 x = objectEvent->currentCoords.x;
+        s16 y = objectEvent->currentCoords.y;
+        MoveCoords(direction, &x, &y);
+        ShowWarpArrowSprite(objectEvent->warpArrowSpriteId, direction, x, y);
+        return TRUE;
+    }
+    return FALSE;
+}
+
 static void HideShowWarpArrow(struct ObjectEvent *objectEvent)
 {
     s16 x;
     s16 y;
-    u8 direction;
+    u8 direction = objectEvent->movementDirection;
     u8 metatileBehavior = objectEvent->currentMetatileBehavior;
 
-    for (x = 0, direction = DIR_SOUTH; x < 4; x++, direction++)
+    if (direction != DIR_NONE)
     {
-        if (sArrowWarpMetatileBehaviorChecks2[x](metatileBehavior) && direction == objectEvent->movementDirection)
+        if (IsDirectionDiagonal(direction))
         {
-            // Show warp arrow if applicable
-            x = objectEvent->currentCoords.x;
-            y = objectEvent->currentCoords.y;
-            MoveCoords(direction, &x, &y);
-            ShowWarpArrowSprite(objectEvent->warpArrowSpriteId, direction, x, y);
-            return;
+            if (TryShowWarpArrow(objectEvent, gSubDirections[direction][0], metatileBehavior)
+                || TryShowWarpArrow(objectEvent, gSubDirections[direction][1], metatileBehavior))
+                return;
+        }
+        else
+        {
+            if (TryShowWarpArrow(objectEvent, direction, metatileBehavior))
+                return;
         }
     }
     SetSpriteInvisible(objectEvent->warpArrowSpriteId);
@@ -1556,16 +1678,20 @@ static void DoPlayerMatSpin(void)
     PlayerAvatar_DoSecretBaseMatSpin(taskId);
 }
 
+#define sState        data[0]
+#define sInitDir      data[1]
+#define sActionIndex  data[2]
+
 static void PlayerAvatar_DoSecretBaseMatSpin(u8 taskId)
 {
-    while (sPlayerAvatarSecretBaseMatSpin[gTasks[taskId].data[0]](&gTasks[taskId], &gObjectEvents[gPlayerAvatar.objectEventId]))
+    while (sPlayerAvatarSecretBaseMatSpin[gTasks[taskId].sState](&gTasks[taskId], &gObjectEvents[gPlayerAvatar.objectEventId]))
         ;
 }
 
 static bool8 PlayerAvatar_SecretBaseMatSpinStep0(struct Task *task, struct ObjectEvent *objectEvent)
 {
-    task->data[0]++;
-    task->data[1] = objectEvent->movementDirection;
+    task->sState++;
+    task->sInitDir = objectEvent->movementDirection;
     gPlayerAvatar.preventStep = TRUE;
     ScriptContext2_Enable();
     PlaySE(SE_WARP_IN);
@@ -1574,18 +1700,27 @@ static bool8 PlayerAvatar_SecretBaseMatSpinStep0(struct Task *task, struct Objec
 
 static bool8 PlayerAvatar_SecretBaseMatSpinStep1(struct Task *task, struct ObjectEvent *objectEvent)
 {
-    u8 directions[] = {DIR_WEST, DIR_EAST, DIR_NORTH, DIR_SOUTH};
+    u8 directions[] = { // clockwise
+        [DIR_SOUTH] = DIR_SOUTHWEST,
+        [DIR_NORTH] = DIR_NORTHEAST,
+        [DIR_WEST] = DIR_NORTHWEST,
+        [DIR_EAST] = DIR_SOUTHEAST,
+        [DIR_SOUTHWEST] = DIR_WEST,
+        [DIR_SOUTHEAST] = DIR_SOUTH,
+        [DIR_NORTHWEST] = DIR_NONE,
+        [DIR_NORTHEAST] = DIR_EAST,
+    };
 
     if (ObjectEventClearHeldMovementIfFinished(objectEvent))
     {
-        u8 direction;
+        u8 direction = directions[objectEvent->movementDirection - 1];
 
-        ObjectEventSetHeldMovement(objectEvent, GetFaceDirectionMovementAction(direction = directions[objectEvent->movementDirection - 1]));
-        if (direction == (u8)task->data[1])
-            task->data[2]++;
-        task->data[0]++;
-        if (task->data[2] > 3 && direction == GetOppositeDirection(task->data[1]))
-            task->data[0]++;
+        ObjectEventSetHeldMovement(objectEvent, GetFaceDirectionMovementAction(direction));
+        if (direction == (u8)task->sInitDir)
+            task->sActionIndex++;
+        task->sState++;
+        if (task->sActionIndex >= 2 && direction == GetOppositeDirection(task->sInitDir))
+            task->sState++;
     }
     return FALSE;
 }
@@ -1594,16 +1729,14 @@ static bool8 PlayerAvatar_SecretBaseMatSpinStep2(struct Task *task, struct Objec
 {
     const u8 actions[] = {
         MOVEMENT_ACTION_DELAY_1,
-        MOVEMENT_ACTION_DELAY_1,
         MOVEMENT_ACTION_DELAY_2,
-        MOVEMENT_ACTION_DELAY_4,
         MOVEMENT_ACTION_DELAY_8,
     };
 
     if (ObjectEventClearHeldMovementIfFinished(objectEvent))
     {
-        ObjectEventSetHeldMovement(objectEvent, actions[task->data[2]]);
-        task->data[0] = 1;
+        ObjectEventSetHeldMovement(objectEvent, actions[task->sActionIndex]);
+        task->sState = 1;
     }
     return FALSE;
 }
@@ -1612,13 +1745,17 @@ static bool8 PlayerAvatar_SecretBaseMatSpinStep3(struct Task *task, struct Objec
 {
     if (ObjectEventClearHeldMovementIfFinished(objectEvent))
     {
-        ObjectEventSetHeldMovement(objectEvent, GetWalkSlowMovementAction(GetOppositeDirection(task->data[1])));
+        ObjectEventSetHeldMovement(objectEvent, GetWalkSlowMovementAction(GetOppositeDirection(task->sInitDir)));
         ScriptContext2_Disable();
         gPlayerAvatar.preventStep = FALSE;
         DestroyTask(FindTaskIdByFunc(PlayerAvatar_DoSecretBaseMatSpin));
     }
     return FALSE;
 }
+
+#undef sState
+#undef sInitDir
+#undef sActionIndex
 
 static void CreateStopSurfingTask(u8 direction)
 {

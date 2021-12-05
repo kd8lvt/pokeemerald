@@ -63,10 +63,8 @@ enum
     ACRO_TRANS_WHEELIE_LOWERING_MOVING,
 };
 
-// Exported RAM declarations
 extern bool8 gUnusedBikeCameraAheadPanback;
 
-// Exported ROM declarations
 void MovePlayerOnBike(u8 direction, u16 newKeys, u16 heldKeys);
 void Bike_TryAcroBikeHistoryUpdate(u16 newKeys, u16 heldKeys);
 bool8 RS_IsRunningDisallowed(u8 tile);
@@ -76,6 +74,7 @@ void GetOnOffBike(u8 transitionFlags);
 void BikeClearState(int newDirHistory, int newAbStartHistory);
 void Bike_UpdateBikeCounterSpeed(u8 counter);
 s16 GetPlayerSpeed(void);
+u8 GetBikeCollision(u8 direction);
 void Bike_HandleBumpySlopeJump(void);
 bool32 IsRunningDisallowed(u8 metatile);
 

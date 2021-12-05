@@ -679,28 +679,36 @@ static void Task_DoDoorWarp(u8 taskId)
     struct Task *task = &gTasks[taskId];
     s16 *x = &task->data[2];
     s16 *y = &task->data[3];
+    u8 objEventId;
 
     switch (task->tState)
     {
     case 0:
         FreezeObjectEvents();
-        PlayerGetDestCoords(x, y);
-        PlaySE(GetDoorSoundEffect(*x, *y - 1));
-        task->data[1] = FieldAnimateDoorOpen(*x, *y - 1);
-        task->tState = 1;
+        objEventId = GetObjectEventIdByLocalIdAndMap(OBJ_EVENT_ID_PLAYER, 0, 0);
+        ObjectEventClearHeldMovementIfActive(&gObjectEvents[objEventId]);
+        ObjectEventSetHeldMovement(&gObjectEvents[objEventId], MOVEMENT_ACTION_FACE_UP);
+        task->tState++;
         break;
     case 1:
-        if (task->data[1] < 0 || gTasks[task->data[1]].isActive != TRUE)
+        if (IsPlayerStandingStill())
         {
-            u8 objEventId;
-            objEventId = GetObjectEventIdByLocalIdAndMap(OBJ_EVENT_ID_PLAYER, 0, 0);
-            ObjectEventClearHeldMovementIfActive(&gObjectEvents[objEventId]);
-            objEventId = GetObjectEventIdByLocalIdAndMap(OBJ_EVENT_ID_PLAYER, 0, 0);
-            ObjectEventSetHeldMovement(&gObjectEvents[objEventId], MOVEMENT_ACTION_WALK_NORMAL_UP);
-            task->tState = 2;
+            PlayerGetDestCoords(x, y);
+            PlaySE(GetDoorSoundEffect(*x, *y - 1));
+            task->data[1] = FieldAnimateDoorOpen(*x, *y - 1);
+            task->tState++;
         }
         break;
     case 2:
+        if (task->data[1] < 0 || gTasks[task->data[1]].isActive != TRUE)
+        {
+            objEventId = GetObjectEventIdByLocalIdAndMap(OBJ_EVENT_ID_PLAYER, 0, 0);
+            ObjectEventClearHeldMovementIfActive(&gObjectEvents[objEventId]);
+            ObjectEventSetHeldMovement(&gObjectEvents[objEventId], MOVEMENT_ACTION_WALK_NORMAL_UP);
+            task->tState++;
+        }
+        break;
+    case 3:
         if (IsPlayerStandingStill())
         {
             u8 objEventId;
@@ -708,16 +716,16 @@ static void Task_DoDoorWarp(u8 taskId)
             objEventId = GetObjectEventIdByLocalIdAndMap(OBJ_EVENT_ID_PLAYER, 0, 0);
             ObjectEventClearHeldMovementIfFinished(&gObjectEvents[objEventId]);
             SetPlayerVisibility(FALSE);
-            task->tState = 3;
-        }
-        break;
-    case 3:
-        if (task->data[1] < 0 || gTasks[task->data[1]].isActive != TRUE)
-        {
-            task->tState = 4;
+            task->tState++;
         }
         break;
     case 4:
+        if (task->data[1] < 0 || gTasks[task->data[1]].isActive != TRUE)
+        {
+            task->tState++;
+        }
+        break;
+    case 5:
         TryFadeOutOldMapMusic();
         WarpFadeOutScreen();
         PlayRainStoppingSoundEffect();
