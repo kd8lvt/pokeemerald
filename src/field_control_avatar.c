@@ -279,7 +279,7 @@ const u8 *GetInteractedLinkPlayerScript(struct MapPosition *position, u8 metatil
     if (!MetatileBehavior_IsCounter(ObjectEventGetMetatileBehaviorAt(position->x, position->y)))
         objectEventId = GetObjectEventIdAroundPosition(position->x, position->y, position->elevation);
     else
-        objectEventId = GetObjectEventIdAroundPosition(position->x + (gDirectionToVectors[direction].x << 4), position->y + (gDirectionToVectors[direction].y << 4), position->elevation);
+        objectEventId = GetObjectEventIdAroundPosition(position->x + GRID_TO_COORDS(gDirectionToVectors[direction].x), position->y + GRID_TO_COORDS(gDirectionToVectors[direction].y), position->elevation);
 
     if (objectEventId == OBJECT_EVENTS_COUNT || gObjectEvents[objectEventId].localId == OBJ_EVENT_ID_PLAYER)
         return NULL;
@@ -308,7 +308,7 @@ static const u8 *GetInteractedObjectEventScript(struct MapPosition *position, u8
             return NULL;
 
         // Look for an object event on the other side of the counter.
-        objectEventId = GetObjectEventIdAroundPosition(position->x + (gDirectionToVectors[direction].x << 4), position->y + (gDirectionToVectors[direction].y << 4), position->elevation);
+        objectEventId = GetObjectEventIdAroundPosition(position->x + GRID_TO_COORDS(gDirectionToVectors[direction].x), position->y + GRID_TO_COORDS(gDirectionToVectors[direction].y), position->elevation);
         if (objectEventId == OBJECT_EVENTS_COUNT || gObjectEvents[objectEventId].localId == OBJ_EVENT_ID_PLAYER)
             return NULL;
     }
@@ -328,7 +328,7 @@ static const u8 *GetInteractedObjectEventScript(struct MapPosition *position, u8
 
 static const u8 *GetInteractedBackgroundEventScript(struct MapPosition *position, u8 metatileBehavior, u8 direction)
 {
-    struct BgEvent *bgEvent = GetBackgroundEventAtPosition(&gMapHeader, position->x - (MAP_OFFSET << 4), position->y - (MAP_OFFSET << 4), position->elevation);
+    struct BgEvent *bgEvent = GetBackgroundEventAtPosition(&gMapHeader, position->x - GRID_TO_COORDS(MAP_OFFSET), position->y - GRID_TO_COORDS(MAP_OFFSET), position->elevation);
 
     if (bgEvent == NULL)
         return NULL;
@@ -506,14 +506,11 @@ static bool8 TryStartStepBasedScript(struct MapPosition *position, u16 metatileB
 
 static bool8 CheckSteppedOnTileCenter(struct MapPosition *position, u8 playerDirection)
 {
-    s16 tileCenterX, tileCenterY;
-    s16 x, y;
+    s16 tileCenterX = GRID_TO_TILE_CENTER(position->x);
+    s16 tileCenterY = GRID_TO_TILE_CENTER(position->y);
 
-    tileCenterX = (position->x << 4) + 8;
-    tileCenterY = (position->y << 4) + 8;
-
-    x = 0;
-    y = 0;
+    s16 x = 0;
+    s16 y = 0;
     MoveCoords(playerDirection, &x, &y);
 
     if (x > 0 && position->x >= tileCenterX)
@@ -853,7 +850,7 @@ static bool8 IsArrowWarpMetatileBehavior(u16 metatileBehavior, u8 direction)
 
 static s8 GetWarpEventAtMapPosition(struct MapHeader *mapHeader, struct MapPosition *position)
 {
-    return GetWarpEventAtPosition(mapHeader, (position->x >> 4) - MAP_OFFSET, (position->y >> 4) - MAP_OFFSET, position->elevation);
+    return GetWarpEventAtPosition(mapHeader, COORDS_TO_GRID(position->x) - MAP_OFFSET, COORDS_TO_GRID(position->y) - MAP_OFFSET, position->elevation);
 }
 
 static void SetupWarp(struct MapHeader *unused, s8 warpEventId, struct MapPosition *position)
@@ -999,8 +996,8 @@ static struct BgEvent *GetBackgroundEventAtPosition(struct MapHeader *mapHeader,
 
     for (i = 0; i < bgEventCount; i++)
     {
-        s16 bgX = (s16)(bgEvents[i].x << 4) + 8;
-        s16 bgY = (s16)(bgEvents[i].y << 4) + 8;
+        s16 bgX = GRID_TO_TILE_CENTER((s16)bgEvents[i].x);
+        s16 bgY = GRID_TO_TILE_CENTER((s16)bgEvents[i].y);
         if (x >= bgX - 8 && x <= bgX + 8
          && y >= bgY - 8 && y <= bgY + 8)
         {

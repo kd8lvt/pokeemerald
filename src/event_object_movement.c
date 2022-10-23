@@ -1218,7 +1218,7 @@ u8 GetObjectEventIdByXY(s16 x, s16 y)
     u8 i;
     for (i = 0; i < OBJECT_EVENTS_COUNT; i++)
     {
-        if (gObjectEvents[i].active && (gObjectEvents[i].currentCoords.x>>4) == x && (gObjectEvents[i].currentCoords.y>>4) == y)
+        if (gObjectEvents[i].active && COORDS_TO_GRID(gObjectEvents[i].currentCoords.x) == x && COORDS_TO_GRID(gObjectEvents[i].currentCoords.y) == y)
             break;
     }
 
@@ -1281,9 +1281,8 @@ static u8 InitObjectEventStateFromTemplate(struct ObjectEventTemplate *template,
     objectEvent->localId = template->localId;
     objectEvent->mapNum = mapNum;
     objectEvent->mapGroup = mapGroup;
-    // TODO: make a constant instead of using << 4 and >> 4 everywhere
-    objectEvent->initialCoords.x = (x << 4) + 8;
-    objectEvent->initialCoords.y = (y << 4) + 8;
+    objectEvent->initialCoords.x = GRID_TO_TILE_CENTER(x);
+    objectEvent->initialCoords.y = GRID_TO_TILE_CENTER(y);
     objectEvent->currentCoords.x = objectEvent->initialCoords.x;
     objectEvent->currentCoords.y = objectEvent->initialCoords.y;
     objectEvent->previousCoords.x = objectEvent->currentCoords.x;
@@ -1581,8 +1580,8 @@ u8 CreateVirtualObject(u8 graphicsId, u8 virtualObjId, s16 x, s16 y, u8 elevatio
     graphicsInfo = GetObjectEventGraphicsInfo(graphicsId);
     CopyObjectGraphicsInfoToSpriteTemplate(graphicsId, SpriteCB_VirtualObject, &spriteTemplate, &subspriteTables);
     *(u16 *)&spriteTemplate.paletteTag = TAG_NONE;
-    x += MAP_OFFSET << 4;
-    y += MAP_OFFSET << 4;
+    x += GRID_TO_COORDS(MAP_OFFSET);
+    y += GRID_TO_COORDS(MAP_OFFSET);
     SetSpritePosToOffsetMapCoords(&x, &y, 8, 16);
     spriteId = CreateSpriteAtEnd(&spriteTemplate, x, y, 0);
     if (spriteId != MAX_SPRITES)
@@ -1622,10 +1621,10 @@ void TrySpawnObjectEvents(s16 cameraX, s16 cameraY)
 
     if (gMapHeader.events != NULL)
     {
-        s16 left = (gSaveBlock1Ptr->pos.x >> 4) - 2;
-        s16 right = (gSaveBlock1Ptr->pos.x >> 4) + MAP_OFFSET_W + 2;
-        s16 top = gSaveBlock1Ptr->pos.y >> 4;
-        s16 bottom = (gSaveBlock1Ptr->pos.y >> 4) + MAP_OFFSET_H + 2;
+        s16 left = COORDS_TO_GRID(gSaveBlock1Ptr->pos.x) - 2;
+        s16 right = COORDS_TO_GRID(gSaveBlock1Ptr->pos.x) + MAP_OFFSET_W + 2;
+        s16 top = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y);
+        s16 bottom = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y) + MAP_OFFSET_H + 2;
 
         if (InBattlePyramid())
             objectCount = GetNumBattlePyramidObjectEvents();
@@ -1671,10 +1670,10 @@ void RemoveObjectEventsOutsideView(void)
 
 static void RemoveObjectEventIfOutsideView(struct ObjectEvent *objectEvent)
 {
-    s16 left =   gSaveBlock1Ptr->pos.x - (2 << 4);
-    s16 right =  gSaveBlock1Ptr->pos.x + (17 << 4);
+    s16 left =   gSaveBlock1Ptr->pos.x - GRID_TO_COORDS(2);
+    s16 right =  gSaveBlock1Ptr->pos.x + GRID_TO_COORDS(17);
     s16 top =    gSaveBlock1Ptr->pos.y;
-    s16 bottom = gSaveBlock1Ptr->pos.y + (16 << 4);
+    s16 bottom = gSaveBlock1Ptr->pos.y + GRID_TO_COORDS(16);
 
     if (objectEvent->currentCoords.x >= left && objectEvent->currentCoords.x <= right
      && objectEvent->currentCoords.y >= top && objectEvent->currentCoords.y <= bottom)
@@ -2105,7 +2104,7 @@ void MoveObjectEventToMapCoords(struct ObjectEvent *objectEvent, s16 x, s16 y)
 
     sprite = &gSprites[objectEvent->spriteId];
     graphicsInfo = GetObjectEventGraphicsInfo(objectEvent->graphicsId);
-    SetObjectEventCoords(objectEvent, x << 4, y << 4);
+    SetObjectEventCoords(objectEvent, GRID_TO_COORDS(x), GRID_TO_COORDS(y));
     SetSpritePosToMapCoords(objectEvent->currentCoords.x, objectEvent->currentCoords.y, &sprite->x, &sprite->y);
     sprite->centerToCornerVecX = -(graphicsInfo->width >> 1);
     sprite->centerToCornerVecY = -(graphicsInfo->height >> 1);
@@ -2385,16 +2384,16 @@ static void SetObjectEventTargetCoords(struct ObjectEvent *objectEvent, u8 direc
         // Used in scripted movement to center the object to the grid
         if (objectEvent->targetCoords.x == -2048)
         {
-            objectEvent->targetCoords.x = (objectEvent->currentCoords.x >> 4) + sDirectionToVectors[direction].x;
-            objectEvent->targetCoords.y = (objectEvent->currentCoords.y >> 4) + sDirectionToVectors[direction].y;
-            objectEvent->targetCoords.x = (objectEvent->targetCoords.x << 4) + 8;
-            objectEvent->targetCoords.y = (objectEvent->targetCoords.y << 4) + 8;
+            objectEvent->targetCoords.x = COORDS_TO_GRID(objectEvent->currentCoords.x) + sDirectionToVectors[direction].x;
+            objectEvent->targetCoords.y = COORDS_TO_GRID(objectEvent->currentCoords.y) + sDirectionToVectors[direction].y;
+            objectEvent->targetCoords.x = GRID_TO_TILE_CENTER(objectEvent->targetCoords.x);
+            objectEvent->targetCoords.y = GRID_TO_TILE_CENTER(objectEvent->targetCoords.y);
         }
         return;
     }
 
-    objectEvent->targetCoords.x = objectEvent->currentCoords.x + (sDirectionToVectors[direction].x << 4);
-    objectEvent->targetCoords.y = objectEvent->currentCoords.y + (sDirectionToVectors[direction].y << 4);
+    objectEvent->targetCoords.x = objectEvent->currentCoords.x + GRID_TO_COORDS(sDirectionToVectors[direction].x);
+    objectEvent->targetCoords.y = objectEvent->currentCoords.y + GRID_TO_COORDS(sDirectionToVectors[direction].y);
 }
 
 static void ClearObjectEventTargetCoords(struct ObjectEvent *objectEvent)
@@ -2685,10 +2684,10 @@ bool8 ObjectEventIsTrainerAndCloseToPlayer(struct ObjectEvent *objectEvent)
     PlayerGetDestCoords(&playerX, &playerY);
     objX = objectEvent->currentCoords.x;
     objY = objectEvent->currentCoords.y;
-    minX = objX - (objectEvent->trainerRange_berryTreeId << 4);
-    minY = objY - (objectEvent->trainerRange_berryTreeId << 4);
-    maxX = objX + (objectEvent->trainerRange_berryTreeId << 4);
-    maxY = objY + (objectEvent->trainerRange_berryTreeId << 4);
+    minX = objX - GRID_TO_COORDS(objectEvent->trainerRange_berryTreeId);
+    minY = objY - GRID_TO_COORDS(objectEvent->trainerRange_berryTreeId);
+    maxX = objX + GRID_TO_COORDS(objectEvent->trainerRange_berryTreeId);
+    maxY = objY + GRID_TO_COORDS(objectEvent->trainerRange_berryTreeId);
     if (minX > playerX || maxX < playerX
      || minY > playerY || maxY < playerY)
         return FALSE;
@@ -2874,7 +2873,12 @@ u8 TryGetTrainerEncounterDirection(struct ObjectEvent *objectEvent, u8 movementT
     if (absdy < 0)
         absdy = -absdy;
 
-    return gGetVectorDirectionFuncs[movementType](dx >> 4, dy >> 4, absdx >> 4, absdy >> 4);
+    dx >>= OBJECT_EVENT_COORD_SHIFT;
+    dy >>= OBJECT_EVENT_COORD_SHIFT;
+    absdx >>= OBJECT_EVENT_COORD_SHIFT;
+    absdy >>= OBJECT_EVENT_COORD_SHIFT;
+
+    return gGetVectorDirectionFuncs[movementType](dx, dy, absdx, absdy);
 }
 
 movement_type_def(MovementType_LookAround, gMovementTypeFuncs_LookAround)
@@ -4698,7 +4702,7 @@ u8 GetCollisionAtCoords(struct ObjectEvent *objectEvent, s16 x, s16 y, u32 dir)
     u8 direction = dir;
     if (IsCoordOutsideObjectEventMovementRange(objectEvent, x, y))
         return COLLISION_OUTSIDE_RANGE;
-    else if (ObjectEventGetCollisionAt(x, y) || GetMapBorderIdAt(x >> 4, y >> 4) == CONNECTION_INVALID || IsMetatileDirectionallyImpassable(objectEvent, x, y, direction))
+    else if (ObjectEventGetCollisionAt(x, y) || GetMapBorderIdAt(COORDS_TO_GRID(x), COORDS_TO_GRID(y)) == CONNECTION_INVALID || IsMetatileDirectionallyImpassable(objectEvent, x, y, direction))
         return COLLISION_IMPASSABLE;
     else if (objectEvent->trackedByCamera && !CanCameraMoveInDirection(direction))
         return COLLISION_IMPASSABLE;
@@ -4715,7 +4719,7 @@ u8 GetCollisionFlagsAtCoords(struct ObjectEvent *objectEvent, s16 x, s16 y, u8 d
 
     if (IsCoordOutsideObjectEventMovementRange(objectEvent, x, y))
         flags |= 1 << (COLLISION_OUTSIDE_RANGE - 1);
-    if (ObjectEventGetCollisionAt(x, y) || GetMapBorderIdAt(x >> 4, y >> 4) == CONNECTION_INVALID || IsMetatileDirectionallyImpassable(objectEvent, x, y, direction) || (objectEvent->trackedByCamera && !CanCameraMoveInDirection(direction)))
+    if (ObjectEventGetCollisionAt(x, y) || GetMapBorderIdAt(COORDS_TO_GRID(x), COORDS_TO_GRID(y)) == CONNECTION_INVALID || IsMetatileDirectionallyImpassable(objectEvent, x, y, direction) || (objectEvent->trackedByCamera && !CanCameraMoveInDirection(direction)))
         flags |= 1 << (COLLISION_IMPASSABLE - 1);
     if (IsElevationMismatchAt(objectEvent->currentElevation, x, y))
         flags |= 1 << (COLLISION_ELEVATION_MISMATCH - 1);
@@ -4726,27 +4730,27 @@ u8 GetCollisionFlagsAtCoords(struct ObjectEvent *objectEvent, s16 x, s16 y, u8 d
 
 u32 ObjectEventGetMetatileIdAt(int x, int y)
 {
-    return MapGridGetMetatileIdAt(x >> 4, y >> 4);
+    return MapGridGetMetatileIdAt(COORDS_TO_GRID(x), COORDS_TO_GRID(y));
 }
 
 u32 ObjectEventGetMetatileBehaviorAt(int x, int y)
 {
-    return MapGridGetMetatileBehaviorAt(x >> 4, y >> 4);
+    return MapGridGetMetatileBehaviorAt(COORDS_TO_GRID(x), COORDS_TO_GRID(y));
 }
 
 u8 ObjectEventGetCollisionAt(int x, int y)
 {
-    return MapGridGetCollisionAt(x >> 4, y >> 4);
+    return MapGridGetCollisionAt(COORDS_TO_GRID(x), COORDS_TO_GRID(y));
 }
 
 u8 ObjectEventGetMetatileLayerTypeAt(int x, int y)
 {
-    return MapGridGetMetatileLayerTypeAt(x >> 4, y >> 4);
+    return MapGridGetMetatileLayerTypeAt(COORDS_TO_GRID(x), COORDS_TO_GRID(y));
 }
 
 u8 ObjectEventGetElevationAt(int x, int y)
 {
-    return MapGridGetElevationAt(x >> 4, y >> 4);
+    return MapGridGetElevationAt(COORDS_TO_GRID(x), COORDS_TO_GRID(y));
 }
 
 static bool8 IsCoordOutsideObjectEventMovementRange(struct ObjectEvent *objectEvent, s16 x, s16 y)
@@ -4758,16 +4762,16 @@ static bool8 IsCoordOutsideObjectEventMovementRange(struct ObjectEvent *objectEv
 
     if (objectEvent->rangeX != 0)
     {
-        left = objectEvent->initialCoords.x - (objectEvent->rangeX << 4);
-        right = objectEvent->initialCoords.x + (objectEvent->rangeX << 4);
+        left = objectEvent->initialCoords.x - GRID_TO_COORDS(objectEvent->rangeX);
+        right = objectEvent->initialCoords.x + GRID_TO_COORDS(objectEvent->rangeX);
 
         if (left > x || right < x)
             return TRUE;
     }
     if (objectEvent->rangeY != 0)
     {
-        top = objectEvent->initialCoords.y - (objectEvent->rangeY << 4);
-        bottom = objectEvent->initialCoords.y + (objectEvent->rangeY << 4);
+        top = objectEvent->initialCoords.y - GRID_TO_COORDS(objectEvent->rangeY);
+        bottom = objectEvent->initialCoords.y + GRID_TO_COORDS(objectEvent->rangeY);
 
         if (top > y || bottom < y)
             return TRUE;
@@ -4842,8 +4846,8 @@ void MoveObjectEventCoords(u8 direction, s16 *x, s16 *y)
 
 void MoveCoordsInMapCoordIncrement(u8 direction, s16 *x, s16 *y)
 {
-    *x += sDirectionToVectors[direction].x << 4;
-    *y += sDirectionToVectors[direction].y << 4;
+    *x += GRID_TO_COORDS(sDirectionToVectors[direction].x);
+    *y += GRID_TO_COORDS(sDirectionToVectors[direction].y);
 }
 
 static void MoveCoordsInDirection(u32 dir, s16 *x, s16 *y, s16 deltaX, s16 deltaY)
@@ -7692,7 +7696,7 @@ static u8 ObjectEventGetNearbyReflectionType(struct ObjectEvent *objEvent)
     s16 height = (info->height + 8) >> 4;
     s16 i, j;
     u8 result, b; // used by RETURN_REFLECTION_TYPE_AT
-    s16 one = 16;
+    s16 one = OBJECT_EVENT_COORD_UNIT;
     s32 currCoordsX = objEvent->currentCoords.x;
     s32 currCoordsY = objEvent->currentCoords.y;
     s32 prevCoordsX = objEvent->previousCoords.x;
@@ -7701,14 +7705,14 @@ static u8 ObjectEventGetNearbyReflectionType(struct ObjectEvent *objEvent)
     // FIXME: why does this need to check for previous coords?
     for (i = 0; i < height; i++)
     {
-        RETURN_REFLECTION_TYPE_AT(currCoordsX, currCoordsY + one + (i<<4));
-        RETURN_REFLECTION_TYPE_AT(prevCoordsX, prevCoordsY + one + (i<<4));
+        RETURN_REFLECTION_TYPE_AT(currCoordsX, currCoordsY + one + GRID_TO_COORDS(i));
+        RETURN_REFLECTION_TYPE_AT(prevCoordsX, prevCoordsY + one + GRID_TO_COORDS(i));
         for (j = 1; j < width; j++)
         {
-            RETURN_REFLECTION_TYPE_AT(currCoordsX + (j<<4), currCoordsY + one + (i<<4));
-            RETURN_REFLECTION_TYPE_AT(currCoordsX - (j<<4), currCoordsY + one + (i<<4));
-            RETURN_REFLECTION_TYPE_AT(prevCoordsX + (j<<4), prevCoordsY + one + (i<<4));
-            RETURN_REFLECTION_TYPE_AT(prevCoordsX - (j<<4), prevCoordsY + one + (i<<4));
+            RETURN_REFLECTION_TYPE_AT(currCoordsX + GRID_TO_COORDS(j), currCoordsY + one + GRID_TO_COORDS(i));
+            RETURN_REFLECTION_TYPE_AT(currCoordsX - GRID_TO_COORDS(j), currCoordsY + one + GRID_TO_COORDS(i));
+            RETURN_REFLECTION_TYPE_AT(prevCoordsX + GRID_TO_COORDS(j), prevCoordsY + one + GRID_TO_COORDS(i));
+            RETURN_REFLECTION_TYPE_AT(prevCoordsX - GRID_TO_COORDS(j), prevCoordsY + one + GRID_TO_COORDS(i));
         }
     }
 
@@ -7867,10 +7871,8 @@ static bool8 AreElevationsCompatible(u8 a, u8 b)
 
 static void SetupGroundTileEffect(struct ObjectEvent *objEvent)
 {
-    gFieldEffectArguments[0] = objEvent->currentCoords.x >> 4;
-    gFieldEffectArguments[1] = objEvent->currentCoords.y >> 4;
-    gFieldEffectArguments[0] = (gFieldEffectArguments[0] << 4) + 8;
-    gFieldEffectArguments[1] = (gFieldEffectArguments[1] << 4) + 8;
+    gFieldEffectArguments[0] = COORDS_TO_TILE_CENTER(objEvent->currentCoords.x);
+    gFieldEffectArguments[1] = COORDS_TO_TILE_CENTER(objEvent->currentCoords.y);
 }
 
 void GroundEffect_SpawnOnTallGrass(struct ObjectEvent *objEvent, struct Sprite *sprite)

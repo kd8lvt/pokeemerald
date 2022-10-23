@@ -5,6 +5,7 @@
 #include "script.h"
 #include "sound.h"
 #include "task.h"
+#include "constants/event_object_movement.h"
 #include "constants/field_effects.h"
 #include "constants/songs.h"
 #include "constants/metatile_labels.h"
@@ -64,8 +65,8 @@ bool8 ShouldDoBrailleDigEffect(void)
      && (gSaveBlock1Ptr->location.mapGroup == MAP_GROUP(SEALED_CHAMBER_OUTER_ROOM)
      && gSaveBlock1Ptr->location.mapNum == MAP_NUM(SEALED_CHAMBER_OUTER_ROOM)))
     {
-        int posX = gSaveBlock1Ptr->pos.x >> 4;
-        int posY = gSaveBlock1Ptr->pos.y >> 4;
+        int posX = COORDS_TO_GRID(gSaveBlock1Ptr->pos.x);
+        int posY = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y);
         if (posX == 10 && posY == 3)
             return TRUE;
         if (posX == 9 && posY == 3)
@@ -172,8 +173,8 @@ bool8 ShouldDoBrailleRegirockEffect(void)
         && gSaveBlock1Ptr->location.mapGroup == MAP_GROUP(DESERT_RUINS)
         && gSaveBlock1Ptr->location.mapNum == MAP_NUM(DESERT_RUINS))
     {
-        int posX = gSaveBlock1Ptr->pos.x >> 4;
-        int posY = gSaveBlock1Ptr->pos.y >> 4;
+        int posX = COORDS_TO_GRID(gSaveBlock1Ptr->pos.x);
+        int posY = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y);
         if (posX == 6 && posY == 23)
         {
             sIsRegisteelPuzzle = FALSE;
@@ -224,8 +225,8 @@ bool8 ShouldDoBrailleRegisteelEffect(void)
 {
     if (!FlagGet(FLAG_SYS_REGISTEEL_PUZZLE_COMPLETED) && (gSaveBlock1Ptr->location.mapGroup == MAP_GROUP(ANCIENT_TOMB) && gSaveBlock1Ptr->location.mapNum == MAP_NUM(ANCIENT_TOMB)))
     {
-        int posX = gSaveBlock1Ptr->pos.x >> 4;
-        int posY = gSaveBlock1Ptr->pos.y >> 4;
+        int posX = COORDS_TO_GRID(gSaveBlock1Ptr->pos.x);
+        int posY = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y);
         if (posX == 8 && posY == 25)
         {
             sIsRegisteelPuzzle = TRUE;
@@ -302,7 +303,7 @@ bool8 ShouldDoBrailleRegicePuzzle(void)
         {
             u8 xPos = sRegicePathCoords[i][0];
             u8 yPos = sRegicePathCoords[i][1];
-            if (gSaveBlock1Ptr->pos.x>>4 == xPos && gSaveBlock1Ptr->pos.y>>4 == yPos)
+            if (COORDS_TO_GRID(gSaveBlock1Ptr->pos.x) == xPos && COORDS_TO_GRID(gSaveBlock1Ptr->pos.y) == yPos)
             {
                 u16 varValue;
 
@@ -330,7 +331,7 @@ bool8 ShouldDoBrailleRegicePuzzle(void)
                     return FALSE;
 
                 // This final check is redundant.
-                if (gSaveBlock1Ptr->pos.x>>4 == 8 && gSaveBlock1Ptr->pos.y>>4 == 21)
+                if (COORDS_TO_GRID(gSaveBlock1Ptr->pos.x) == 8 && COORDS_TO_GRID(gSaveBlock1Ptr->pos.y) == 21)
                     return TRUE;
                 else
                     return FALSE;

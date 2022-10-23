@@ -1167,8 +1167,8 @@ static void DecorationItemsMenuAction_Cancel(u8 taskId)
 
 static void SetInitialPositions(u8 taskId)
 {
-    gTasks[taskId].tInitialX = gSaveBlock1Ptr->pos.x >> 4;
-    gTasks[taskId].tInitialY = gSaveBlock1Ptr->pos.y >> 4;
+    gTasks[taskId].tInitialX = COORDS_TO_GRID(gSaveBlock1Ptr->pos.x);
+    gTasks[taskId].tInitialY = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y);
     PlayerGetDestCoordsInTiles(&gTasks[taskId].tCursorX, &gTasks[taskId].tCursorY);
 }
 

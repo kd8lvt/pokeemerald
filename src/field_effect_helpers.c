@@ -322,6 +322,23 @@ u32 FldEff_TallGrass(void)
     return 0;
 }
 
+static bool8 CheckGrassEffectObjectMovedAway(u8 objectEventId, struct Sprite *sprite)
+{
+    struct ObjectEvent *objectEvent = &gObjectEvents[objectEventId];
+
+    s16 coordsX = COORDS_TO_GRID(objectEvent->currentCoords.x);
+    s16 coordsY = COORDS_TO_GRID(objectEvent->currentCoords.y);
+    s16 prevCoordsX = COORDS_TO_GRID(objectEvent->previousCoords.x);
+    s16 prevCoordsY = COORDS_TO_GRID(objectEvent->previousCoords.y);
+    s16 spriteX = COORDS_TO_GRID(sprite->sX);
+    s16 spriteY = COORDS_TO_GRID(sprite->sY);
+
+    if ((coordsX != spriteX || coordsY != spriteY) && (prevCoordsX != spriteX || prevCoordsY != spriteY))
+        return TRUE;
+
+    return FALSE;
+}
+
 void UpdateTallGrassFieldEffect(struct Sprite *sprite)
 {
     u8 mapNum;
@@ -329,7 +346,6 @@ void UpdateTallGrassFieldEffect(struct Sprite *sprite)
     u8 metatileBehavior;
     u8 localId;
     u8 objectEventId;
-    struct ObjectEvent *objectEvent;
 
     mapNum = sprite->sCurrentMap >> 8;
     mapGroup = sprite->sCurrentMap;
@@ -352,21 +368,8 @@ void UpdateTallGrassFieldEffect(struct Sprite *sprite)
     }
     else
     {
-        s16 spriteX, spriteY;
-        s16 coordsX, coordsY;
-        s16 prevCoordsX, prevCoordsY;
         // Check if the object that triggered the effect has moved away
-        objectEvent = &gObjectEvents[objectEventId];
-        coordsX = objectEvent->currentCoords.x >> 4;
-        coordsY = objectEvent->currentCoords.y >> 4;
-        coordsX = objectEvent->previousCoords.x >> 4;
-        coordsY = objectEvent->previousCoords.y >> 4;
-        spriteX = sprite->sX >> 4;
-        spriteY = sprite->sY >> 4;
-        if ((coordsX != spriteX
-          || coordsY != spriteY)
-        && (prevCoordsX != spriteX
-         || prevCoordsY != spriteY))
+        if (CheckGrassEffectObjectMovedAway(objectEventId, sprite))
             sprite->sObjectMoved = TRUE;
 
         // Metatile behavior var re-used as subpriority
@@ -408,7 +411,8 @@ u8 FindTallGrassFieldEffectSpriteId(u8 localId, u8 mapNum, u8 mapGroup, s16 x, s
         {
             sprite = &gSprites[i];
             if (sprite->callback == UpdateTallGrassFieldEffect
-                && (x >> 4 == sprite->sX >> 4 && y >> 4 == sprite->sY >> 4)
+                && (COORDS_TO_GRID(x) == COORDS_TO_GRID(sprite->sX)
+                 && COORDS_TO_GRID(y) == COORDS_TO_GRID(sprite->sY))
                 && localId == (u8)(sprite->sLocalId)
                 && mapNum == (sprite->sMapNum & 0xFF)
                 && mapGroup == sprite->sMapGroup)
@@ -454,7 +458,6 @@ void UpdateLongGrassFieldEffect(struct Sprite *sprite)
     u8 metatileBehavior;
     u8 localId;
     u8 objectEventId;
-    struct ObjectEvent *objectEvent;
 
     mapNum = sprite->sCurrentMap >> 8;
     mapGroup = sprite->sCurrentMap;
@@ -476,21 +479,8 @@ void UpdateLongGrassFieldEffect(struct Sprite *sprite)
     }
     else
     {
-        s16 spriteX, spriteY;
-        s16 coordsX, coordsY;
-        s16 prevCoordsX, prevCoordsY;
         // Check if the object that triggered the effect has moved away
-        objectEvent = &gObjectEvents[objectEventId];
-        coordsX = objectEvent->currentCoords.x >> 4;
-        coordsY = objectEvent->currentCoords.y >> 4;
-        coordsX = objectEvent->previousCoords.x >> 4;
-        coordsY = objectEvent->previousCoords.y >> 4;
-        spriteX = sprite->sX >> 4;
-        spriteY = sprite->sY >> 4;
-        if ((coordsX != spriteX
-          || coordsY != spriteY)
-        && (prevCoordsX != spriteX
-         || prevCoordsY != spriteY))
+        if (CheckGrassEffectObjectMovedAway(objectEventId, sprite))
             sprite->sObjectMoved = TRUE;
 
         UpdateObjectEventSpriteInvisibility(sprite, FALSE);

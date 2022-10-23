@@ -17,6 +17,7 @@
 #include "tv.h"
 #include "constants/rgb.h"
 #include "constants/metatile_behaviors.h"
+#include "constants/event_object_movement.h"
 
 struct ConnectionFlags
 {
@@ -432,8 +433,8 @@ void SaveMapView(void)
     int width;
     mapView = gSaveBlock1Ptr->mapView;
     width = gBackupMapLayout.width;
-    x = gSaveBlock1Ptr->pos.x >> 4;
-    y = gSaveBlock1Ptr->pos.y >> 4;
+    x = COORDS_TO_GRID(gSaveBlock1Ptr->pos.x);
+    y = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y);
     for (i = y; i < y + MAP_OFFSET_H; i++)
     {
         for (j = x; j < x + MAP_OFFSET_W; j++)
@@ -479,8 +480,8 @@ static void LoadSavedMapView(void)
     if (!SavedMapViewIsEmpty())
     {
         width = gBackupMapLayout.width;
-        x = gSaveBlock1Ptr->pos.x >> 4;
-        y = gSaveBlock1Ptr->pos.y >> 4;
+        x = COORDS_TO_GRID(gSaveBlock1Ptr->pos.x);
+        y = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y);
         for (i = y; i < y + MAP_OFFSET_H; i++)
         {
             if (i == y && i != 0)
@@ -523,8 +524,8 @@ static void MoveMapViewToBackup(u8 direction, s8 xOffset, s8 yOffset)
     width = gBackupMapLayout.width;
     r9 = 0;
     r8 = 0;
-    x0 = gSaveBlock1Ptr->pos.x >> 4;
-    y0 = gSaveBlock1Ptr->pos.y >> 4;
+    x0 = COORDS_TO_GRID(gSaveBlock1Ptr->pos.x);
+    y0 = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y);
     x2 = MAP_OFFSET_W;
     y2 = MAP_OFFSET_H;
     switch (direction)
@@ -609,8 +610,9 @@ int GetMapBorderIdAt(int x, int y)
 
 int GetPostCameraMoveMapBorderId(int x, int y)
 {
-    int map_x = (gSaveBlock1Ptr->pos.x + x) >> 4;
-    int map_y = (gSaveBlock1Ptr->pos.y + y) >> 4;
+    // Is this correct...?
+    int map_x = COORDS_TO_GRID(gSaveBlock1Ptr->pos.x);
+    int map_y = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y);
     return GetMapBorderIdAt(map_x + MAP_OFFSET, map_y + MAP_OFFSET);
 }
 
@@ -619,8 +621,8 @@ bool32 CanCameraMoveInDirection(int direction)
     int x = gSaveBlock1Ptr->pos.x + (gDirectionToVectors[direction].x * 8);
     int y = gSaveBlock1Ptr->pos.y + (gDirectionToVectors[direction].y * 8);
 
-    x = (x >> 4) + MAP_OFFSET;
-    y = (y >> 4) + MAP_OFFSET;
+    x = COORDS_TO_GRID(x) + MAP_OFFSET;
+    y = COORDS_TO_GRID(y) + MAP_OFFSET;
 
     if (GetMapBorderIdAt(x, y) == CONNECTION_INVALID)
         return FALSE;
@@ -636,19 +638,19 @@ static void SetPositionFromConnection(struct MapConnection *connection, int dire
     {
     case CONNECTION_EAST:
         gSaveBlock1Ptr->pos.x = -x;
-        gSaveBlock1Ptr->pos.y -= connection->offset << 4;
+        gSaveBlock1Ptr->pos.y -= GRID_TO_COORDS(connection->offset);
         break;
     case CONNECTION_WEST:
-        gSaveBlock1Ptr->pos.x = (mapHeader->mapLayout->width << 4) + (gSaveBlock1Ptr->pos.x % 16);
-        gSaveBlock1Ptr->pos.y -= connection->offset << 4;
+        gSaveBlock1Ptr->pos.x = GRID_TO_COORDS(mapHeader->mapLayout->width) + (gSaveBlock1Ptr->pos.x % OBJECT_EVENT_COORD_UNIT);
+        gSaveBlock1Ptr->pos.y -= GRID_TO_COORDS(connection->offset);
         break;
     case CONNECTION_SOUTH:
-        gSaveBlock1Ptr->pos.x -= connection->offset << 4;
+        gSaveBlock1Ptr->pos.x -= GRID_TO_COORDS(connection->offset);
         gSaveBlock1Ptr->pos.y = -y;
         break;
     case CONNECTION_NORTH:
-        gSaveBlock1Ptr->pos.x -= connection->offset << 4;
-        gSaveBlock1Ptr->pos.y = (mapHeader->mapLayout->height << 4) + (gSaveBlock1Ptr->pos.y % 16);
+        gSaveBlock1Ptr->pos.x -= GRID_TO_COORDS(connection->offset);
+        gSaveBlock1Ptr->pos.y = GRID_TO_COORDS(mapHeader->mapLayout->height) + (gSaveBlock1Ptr->pos.y % OBJECT_EVENT_COORD_UNIT);
         break;
     }
 }
@@ -701,7 +703,7 @@ static struct MapConnection *GetIncomingConnection(u8 direction, int x, int y)
     connection = connections->connections;
     for (i = 0; i < count; i++, connection++)
     {
-        if (connection->direction == direction && IsPosInIncomingConnectingMap(direction, x >> 4, y >> 4, connection) == TRUE)
+        if (connection->direction == direction && IsPosInIncomingConnectingMap(direction, COORDS_TO_GRID(x), COORDS_TO_GRID(y), connection) == TRUE)
             return connection;
     }
     return NULL;
@@ -800,14 +802,14 @@ struct MapConnection *GetMapConnectionAtPos(s16 x, s16 y)
 
 void SetCameraFocusCoords(u16 x, u16 y)
 {
-    gSaveBlock1Ptr->pos.x = x - (MAP_OFFSET << 4);
-    gSaveBlock1Ptr->pos.y = y - (MAP_OFFSET << 4);
+    gSaveBlock1Ptr->pos.x = x - GRID_TO_COORDS(MAP_OFFSET);
+    gSaveBlock1Ptr->pos.y = y - GRID_TO_COORDS(MAP_OFFSET);
 }
 
 void GetCameraFocusCoords(u16 *x, u16 *y)
 {
-    *x = gSaveBlock1Ptr->pos.x + (MAP_OFFSET << 4);
-    *y = gSaveBlock1Ptr->pos.y + (MAP_OFFSET << 4);
+    *x = gSaveBlock1Ptr->pos.x + GRID_TO_COORDS(MAP_OFFSET);
+    *y = gSaveBlock1Ptr->pos.y + GRID_TO_COORDS(MAP_OFFSET);
 }
 
 // Unused

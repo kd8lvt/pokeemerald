@@ -28,6 +28,7 @@
 #include "constants/battle_frontier.h"
 #include "constants/rgb.h"
 #include "constants/region_map_sections.h"
+#include "constants/event_object_movement.h"
 #include "constants/songs.h"
 
 // All windows displayed in the frontier pass.
@@ -1649,8 +1650,8 @@ static void InitFrontierMapSprites(void)
         if (mapNum == MAP_NUM(BATTLE_FRONTIER_OUTSIDE_WEST)
             || (mapNum == MAP_NUM(BATTLE_FRONTIER_OUTSIDE_EAST) && (x = 55)))
         {
-            x += gSaveBlock1Ptr->pos.x >> 4;
-            y = gSaveBlock1Ptr->pos.y >> 4;
+            x += COORDS_TO_GRID(gSaveBlock1Ptr->pos.x);
+            y = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y);
 
             x /= 8;
             y /= 8;

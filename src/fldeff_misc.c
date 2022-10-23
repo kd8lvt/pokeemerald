@@ -1303,7 +1303,7 @@ u8 CreateRecordMixingLights(void)
     else
     {
         struct Sprite *sprite = &gSprites[spriteId];
-        GetMapCoordsFromSpritePos(16 << 4, 13 << 4, &sprite->x, &sprite->y);
+        GetMapCoordsFromSpritePos(GRID_TO_COORDS(16), GRID_TO_COORDS(13), &sprite->x, &sprite->y);
         sprite->coordOffsetEnabled = TRUE;
         sprite->x += 16;
         sprite->y += 2;

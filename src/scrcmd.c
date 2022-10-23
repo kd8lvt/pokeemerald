@@ -889,8 +889,8 @@ bool8 ScrCmd_getplayerxy(struct ScriptContext *ctx)
     u16 *pX = GetVarPointer(ScriptReadHalfword(ctx));
     u16 *pY = GetVarPointer(ScriptReadHalfword(ctx));
 
-    *pX = gSaveBlock1Ptr->pos.x >> 4;
-    *pY = gSaveBlock1Ptr->pos.y >> 4;
+    *pX = COORDS_TO_GRID(gSaveBlock1Ptr->pos.x);
+    *pY = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y);
     return FALSE;
 }
 

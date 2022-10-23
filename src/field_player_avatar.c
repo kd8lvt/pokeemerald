@@ -1226,8 +1226,8 @@ void GetXYCoordsOneStepInFrontOfPlayer(s16 *x, s16 *y)
 
 void GetTileCoordsInFrontOfPlayer(s16 *x, s16 *y)
 {
-    *x = gObjectEvents[gPlayerAvatar.objectEventId].currentCoords.x >> 4;
-    *y = gObjectEvents[gPlayerAvatar.objectEventId].currentCoords.y >> 4;
+    *x = COORDS_TO_GRID(gObjectEvents[gPlayerAvatar.objectEventId].currentCoords.x);
+    *y = COORDS_TO_GRID(gObjectEvents[gPlayerAvatar.objectEventId].currentCoords.y);
     MoveCoords(GetPlayerFacingDirection(), x, y);
 }
 
@@ -1240,8 +1240,8 @@ void PlayerGetDestCoords(s16 *x, s16 *y)
 void PlayerGetDestCoordsInTiles(s16 *x, s16 *y)
 {
     PlayerGetDestCoords(x, y);
-    *x >>= 4;
-    *y >>= 4;
+    *x >>= OBJECT_EVENT_COORD_SHIFT;
+    *y >>= OBJECT_EVENT_COORD_SHIFT;
 }
 
 u8 player_get_pos_including_state_based_drift(s16 *x, s16 *y)
@@ -1250,8 +1250,8 @@ u8 player_get_pos_including_state_based_drift(s16 *x, s16 *y)
 
     if (object->heldMovementActive && !object->heldMovementFinished && !gSprites[object->spriteId].data[2])
     {
-        *x = object->currentCoords.x >> 4;
-        *y = object->currentCoords.y >> 4;
+        *x = COORDS_TO_GRID(object->currentCoords.x);
+        *y = COORDS_TO_GRID(object->currentCoords.y);
 
         switch (object->movementActionId)
         {

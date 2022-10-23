@@ -608,25 +608,22 @@ static void SetPlayerCoordsFromWarp(void)
     if (gSaveBlock1Ptr->location.warpId >= 0 && gSaveBlock1Ptr->location.warpId < gMapHeader.events->warpCount)
     {
         // warpId is a valid warp for this map, use the coords of that warp.
-        gSaveBlock1Ptr->pos.x = gMapHeader.events->warps[gSaveBlock1Ptr->location.warpId].x << 4;
-        gSaveBlock1Ptr->pos.y = gMapHeader.events->warps[gSaveBlock1Ptr->location.warpId].y << 4;
+        gSaveBlock1Ptr->pos.x = GRID_TO_TILE_CENTER(gMapHeader.events->warps[gSaveBlock1Ptr->location.warpId].x);
+        gSaveBlock1Ptr->pos.y = GRID_TO_TILE_CENTER(gMapHeader.events->warps[gSaveBlock1Ptr->location.warpId].y);
     }
     else if (gSaveBlock1Ptr->location.x >= 0 && gSaveBlock1Ptr->location.y >= 0)
     {
         // Invalid warpId given. The given coords are valid, use those instead.
         // WARP_ID_NONE is used to reach this intentionally.
-        gSaveBlock1Ptr->pos.x = gSaveBlock1Ptr->location.x << 4;
-        gSaveBlock1Ptr->pos.y = gSaveBlock1Ptr->location.y << 4;
+        gSaveBlock1Ptr->pos.x = GRID_TO_TILE_CENTER(gSaveBlock1Ptr->location.x);
+        gSaveBlock1Ptr->pos.y = GRID_TO_TILE_CENTER(gSaveBlock1Ptr->location.y);
     }
     else
     {
         // Invalid warpId and coords given. Put player in center of map.
-        gSaveBlock1Ptr->pos.x = (gMapHeader.mapLayout->width / 2) << 4;
-        gSaveBlock1Ptr->pos.y = (gMapHeader.mapLayout->height / 2) << 4;
+        gSaveBlock1Ptr->pos.x = GRID_TO_TILE_CENTER(gMapHeader.mapLayout->width / 2);
+        gSaveBlock1Ptr->pos.y = GRID_TO_TILE_CENTER(gMapHeader.mapLayout->height / 2);
     }
-
-    gSaveBlock1Ptr->pos.x += 8;
-    gSaveBlock1Ptr->pos.y += 8;
 }
 
 void WarpIntoMap(void)
@@ -648,7 +645,7 @@ void SetWarpDestinationToMapWarp(s8 mapGroup, s8 mapNum, s8 warpId)
 
 void SetDynamicWarp(s32 unused, s8 mapGroup, s8 mapNum, s8 warpId)
 {
-    SetWarpData(&gSaveBlock1Ptr->dynamicWarp, mapGroup, mapNum, warpId, gSaveBlock1Ptr->pos.x >> 4, gSaveBlock1Ptr->pos.y >> 4);
+    SetWarpData(&gSaveBlock1Ptr->dynamicWarp, mapGroup, mapNum, warpId, COORDS_TO_GRID(gSaveBlock1Ptr->pos.x), COORDS_TO_GRID(gSaveBlock1Ptr->pos.y));
 }
 
 void SetDynamicWarpWithCoords(s32 unused, s8 mapGroup, s8 mapNum, s8 warpId, s8 x, s8 y)
@@ -959,7 +956,7 @@ static u8 GetAdjustedInitialDirection(struct InitialPlayerAvatarState *playerStr
 
 static u16 GetCenterScreenMetatileBehavior(void)
 {
-    return MapGridGetMetatileBehaviorAt((gSaveBlock1Ptr->pos.x >> 4) + MAP_OFFSET, (gSaveBlock1Ptr->pos.y >> 4) + MAP_OFFSET);
+    return MapGridGetMetatileBehaviorAt(COORDS_TO_GRID(gSaveBlock1Ptr->pos.x) + MAP_OFFSET, COORDS_TO_GRID(gSaveBlock1Ptr->pos.y) + MAP_OFFSET);
 }
 
 bool32 Overworld_IsBikingAllowed(void)
@@ -1116,7 +1113,7 @@ u16 GetCurrLocationDefaultMusic(void)
     }
     else
     {
-        if (gSaveBlock1Ptr->pos.x < 24<<4)
+        if (gSaveBlock1Ptr->pos.x < GRID_TO_TILE_CENTER(24))
             return MUS_ROUTE110;
         else
             return MUS_ROUTE119;
@@ -2176,7 +2173,7 @@ static void InitObjectEventsLocal(void)
     ResetObjectEvents();
     GetCameraFocusCoords(&x, &y);
     player = GetInitialPlayerAvatarState();
-    InitPlayerAvatar(x >> 4, y >> 4, player->direction, gSaveBlock2Ptr->playerGender);
+    InitPlayerAvatar(COORDS_TO_GRID(x), COORDS_TO_GRID(y), player->direction, gSaveBlock2Ptr->playerGender);
     SetPlayerAvatarTransitionFlags(player->transitionFlags);
     ResetInitialPlayerAvatarState();
     TrySpawnObjectEvents(0, 0);
@@ -2214,7 +2211,7 @@ static void OffsetCameraFocusByLinkPlayerId(void)
 
     // This is a hack of some kind; it's undone in SpawnLinkPlayers, which is called
     // soon after this function.
-    SetCameraFocusCoords(x + (gLocalLinkPlayerId << 4), y);
+    SetCameraFocusCoords(x + GRID_TO_COORDS(gLocalLinkPlayerId), y);
 }
 
 static void SpawnLinkPlayers(void)
@@ -2223,7 +2220,7 @@ static void SpawnLinkPlayers(void)
     u16 x, y;
 
     GetCameraFocusCoords(&x, &y);
-    x = (x >> 4) - gLocalLinkPlayerId;
+    x = COORDS_TO_GRID(x) - gLocalLinkPlayerId;
 
     for (i = 0; i < gFieldLinkPlayerCount; i++)
     {

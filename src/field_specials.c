@@ -505,8 +505,8 @@ void SpawnLinkPartnerObjectEvent(void)
     u8 linkSpriteId;
     u8 i;
 
-    int posX = gSaveBlock1Ptr->pos.x >> 4;
-    int posY = gSaveBlock1Ptr->pos.y >> 4;
+    int posX = COORDS_TO_GRID(gSaveBlock1Ptr->pos.x);
+    int posY = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y);
 
     myLinkPlayerNumber = GetMultiplayerId();
     playerFacingDirection = GetPlayerFacingDirection();
@@ -888,8 +888,8 @@ void ShowFieldMessageStringVar4(void)
 
 void StorePlayerCoordsInVars(void)
 {
-    gSpecialVar_0x8004 = gSaveBlock1Ptr->pos.x >> 4;
-    gSpecialVar_0x8005 = gSaveBlock1Ptr->pos.y >> 4;
+    gSpecialVar_0x8004 = COORDS_TO_GRID(gSaveBlock1Ptr->pos.x);
+    gSpecialVar_0x8005 = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y);
 }
 
 u8 GetPlayerTrainerIdOnesDigit(void)
@@ -1043,7 +1043,7 @@ static void PCTurnOnEffect_1(s16 isPcTurnedOn, s8 dx, s8 dy)
         else if (gSpecialVar_0x8004 == PC_LOCATION_MAYS_HOUSE)
             tileId = METATILE_BrendansMaysHouse_MayPC_On;
     }
-    MapGridSetMetatileIdAt((gSaveBlock1Ptr->pos.x>>4) + dx + MAP_OFFSET, (gSaveBlock1Ptr->pos.y>>4) + dy + MAP_OFFSET, tileId | MAPGRID_COLLISION_MASK);
+    MapGridSetMetatileIdAt(COORDS_TO_GRID(gSaveBlock1Ptr->pos.x) + dx + MAP_OFFSET, COORDS_TO_GRID(gSaveBlock1Ptr->pos.y) + dy + MAP_OFFSET, tileId | MAPGRID_COLLISION_MASK);
 }
 
 void DoPCTurnOffEffect(void)
@@ -1214,8 +1214,8 @@ void SpawnCameraObject(void)
     u8 obj = SpawnSpecialObjectEventParameterized(OBJ_EVENT_GFX_BOY_1,
                                                   MOVEMENT_TYPE_FACE_DOWN,
                                                   OBJ_EVENT_ID_CAMERA,
-                                                  (gSaveBlock1Ptr->pos.x >> 4) + MAP_OFFSET,
-                                                  (gSaveBlock1Ptr->pos.y >> 4) + MAP_OFFSET,
+                                                  COORDS_TO_GRID(gSaveBlock1Ptr->pos.x) + MAP_OFFSET,
+                                                  COORDS_TO_GRID(gSaveBlock1Ptr->pos.y) + MAP_OFFSET,
                                                   3);
     gObjectEvents[obj].invisible = TRUE;
     CameraObjectSetFollowedSpriteId(gObjectEvents[obj].spriteId);
@@ -3779,8 +3779,8 @@ static void Task_CloseBattlePikeCurtain(u8 taskId)
         {
             for (x = 0; x < CURTAIN_WIDTH; x++)
             {
-                MapGridSetMetatileIdAt((gSaveBlock1Ptr->pos.x>>4) + x + MAP_OFFSET - 1,
-                                       (gSaveBlock1Ptr->pos.y>>4) + y + MAP_OFFSET - 3,
+                MapGridSetMetatileIdAt(COORDS_TO_GRID(gSaveBlock1Ptr->pos.x) + x + MAP_OFFSET - 1,
+                                       COORDS_TO_GRID(gSaveBlock1Ptr->pos.y) + y + MAP_OFFSET - 3,
                                        (x + METATILE_BattlePike_CurtainFrames_Start) + (y * METATILE_ROW_WIDTH) + (tCurrentFrame * CURTAIN_HEIGHT * METATILE_ROW_WIDTH));
             }
         }

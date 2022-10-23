@@ -864,10 +864,10 @@ static void BuyMenuCollectObjectEventData(void)
     for (y = 0; y < OBJECT_EVENTS_COUNT; y++)
         sShopData->viewportObjects[y][OBJ_EVENT_ID] = OBJECT_EVENTS_COUNT;
 
-    minX = (facingX - 4) << 4;
-    minY = (facingY - 2) << 4;
-    maxX = (facingX + 3) << 4;
-    maxY = (facingY + 3) << 4;
+    minX = GRID_TO_COORDS(facingX - 4);
+    minY = GRID_TO_COORDS(facingY - 2);
+    maxX = GRID_TO_COORDS(facingX + 3);
+    maxY = GRID_TO_COORDS(facingY + 3);
 
     for (i = 0; i < OBJECT_EVENTS_COUNT; i++)
     {
@@ -937,7 +937,7 @@ static void BuyMenuDrawObjectEvents(void)
 
 static bool8 BuyMenuCheckIfObjectEventOverlapsMenuBg(s16 *object)
 {
-    if (!BuyMenuCheckForOverlapWithMenuBg(object[X_COORD] >> 4, (object[Y_COORD] >> 4) + 2) && object[LAYER_TYPE] != METATILE_LAYER_TYPE_COVERED)
+    if (!BuyMenuCheckForOverlapWithMenuBg(COORDS_TO_GRID(object[X_COORD]), COORDS_TO_GRID(object[Y_COORD]) + 2) && object[LAYER_TYPE] != METATILE_LAYER_TYPE_COVERED)
         return TRUE;
     else
         return FALSE;

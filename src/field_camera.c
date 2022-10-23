@@ -69,8 +69,8 @@ static void AddCameraPixelOffset(struct FieldCameraOffset *cameraOffset, u32 xOf
 
 void SetCameraPosition(int x, int y)
 {
-    sCameraPosition.x = x >> 4;
-    sCameraPosition.y = y >> 4;
+    sCameraPosition.x = COORDS_TO_GRID(x);
+    sCameraPosition.y = COORDS_TO_GRID(y);
 }
 
 void ResetFieldCamera(void)
@@ -109,7 +109,7 @@ void GetCameraOffsetWithPan(s16 *x, s16 *y)
 
 void DrawWholeMapView(void)
 {
-    DrawWholeMapViewInternal(gSaveBlock1Ptr->pos.x >> 4, gSaveBlock1Ptr->pos.y >> 4, gMapHeader.mapLayout);
+    DrawWholeMapViewInternal(COORDS_TO_GRID(gSaveBlock1Ptr->pos.x), COORDS_TO_GRID(gSaveBlock1Ptr->pos.y), gMapHeader.mapLayout);
     sFieldCameraOffset.copyBGToVRAM = TRUE;
 }
 
@@ -425,7 +425,7 @@ void CameraUpdate(void)
     {
         sCameraPosition.x += deltaX;
         sCameraPosition.y += deltaY;
-        RotatingGatePuzzleCameraUpdate(deltaX, deltaY);
+        RotatingGatePuzzleCameraUpdate();
         AddCameraTileOffset(&sFieldCameraOffset, deltaX * 2, deltaY * 2);
         RedrawMapSlicesForCameraUpdate(&sFieldCameraOffset, deltaX * 2, deltaY * 2);
     }
