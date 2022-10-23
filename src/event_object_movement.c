@@ -7833,20 +7833,14 @@ static u8 ObjectEventGetNearbyReflectionType(struct ObjectEvent *objEvent)
     s16 one = OBJECT_EVENT_COORD_UNIT;
     s32 currCoordsX = objEvent->currentCoords.x;
     s32 currCoordsY = objEvent->currentCoords.y;
-    s32 prevCoordsX = objEvent->previousCoords.x;
-    s32 prevCoordsY = objEvent->previousCoords.y;
 
-    // FIXME: why does this need to check for previous coords?
     for (i = 0; i < height; i++)
     {
         RETURN_REFLECTION_TYPE_AT(currCoordsX, currCoordsY + one + GRID_TO_COORDS(i));
-        RETURN_REFLECTION_TYPE_AT(prevCoordsX, prevCoordsY + one + GRID_TO_COORDS(i));
         for (j = 1; j < width; j++)
         {
             RETURN_REFLECTION_TYPE_AT(currCoordsX + GRID_TO_COORDS(j), currCoordsY + one + GRID_TO_COORDS(i));
             RETURN_REFLECTION_TYPE_AT(currCoordsX - GRID_TO_COORDS(j), currCoordsY + one + GRID_TO_COORDS(i));
-            RETURN_REFLECTION_TYPE_AT(prevCoordsX + GRID_TO_COORDS(j), prevCoordsY + one + GRID_TO_COORDS(i));
-            RETURN_REFLECTION_TYPE_AT(prevCoordsX - GRID_TO_COORDS(j), prevCoordsY + one + GRID_TO_COORDS(i));
         }
     }
 
