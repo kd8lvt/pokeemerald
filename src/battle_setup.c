@@ -638,7 +638,7 @@ u8 BattleSetup_GetTerrainId(void)
     s16 x, y;
 
     PlayerGetDestCoords(&x, &y);
-    tileBehavior = MapGridGetMetatileBehaviorAt(x, y);
+    tileBehavior = ObjectEventGetMetatileBehaviorAt(x, y);
 
     if (MetatileBehavior_IsTallGrass(tileBehavior))
         return BATTLE_TERRAIN_GRASS;
@@ -698,7 +698,7 @@ static u8 GetBattleTransitionTypeByMap(void)
     s16 x, y;
 
     PlayerGetDestCoords(&x, &y);
-    tileBehavior = MapGridGetMetatileBehaviorAt(x, y);
+    tileBehavior = ObjectEventGetMetatileBehaviorAt(x, y);
 
     if (GetFlashLevel())
         return TRANSITION_TYPE_FLASH;

@@ -21,17 +21,17 @@
 
 // this file's functions
 static u8 CheckTrainer(u8 objectEventId);
-static u8 GetTrainerApproachDistance(struct ObjectEvent *trainerObj);
-static u8 CheckPathBetweenTrainerAndPlayer(struct ObjectEvent *trainerObj, u8 approachDistance, u8 direction);
-static void InitTrainerApproachTask(struct ObjectEvent *trainerObj, u8 range);
+static u16 GetTrainerApproachDistance(struct ObjectEvent *trainerObj);
+static u16 CheckPathBetweenTrainerAndPlayer(struct ObjectEvent *trainerObj, u16 approachDistance, u8 direction);
+static void InitTrainerApproachTask(struct ObjectEvent *trainerObj, u16 range);
 static void Task_RunTrainerSeeFuncList(u8 taskId);
 static void Task_EndTrainerApproach(u8 taskId);
 static void SetIconSpriteData(struct Sprite *sprite, u16 fldEffId, u8 spriteAnimNum);
 
-static u8 GetTrainerApproachDistanceSouth(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y);
-static u8 GetTrainerApproachDistanceNorth(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y);
-static u8 GetTrainerApproachDistanceWest(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y);
-static u8 GetTrainerApproachDistanceEast(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y);
+static u16 GetTrainerApproachDistanceSouth(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y);
+static u16 GetTrainerApproachDistanceNorth(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y);
+static u16 GetTrainerApproachDistanceWest(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y);
+static u16 GetTrainerApproachDistanceEast(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y);
 
 static bool8 TrainerSeeIdle(u8 taskId, struct Task *task, struct ObjectEvent *trainerObj);
 static bool8 TrainerExclamationMark(u8 taskId, struct Task *task, struct ObjectEvent *trainerObj);
@@ -63,7 +63,7 @@ static const u8 sEmotion_ExclamationMarkGfx[] = INCBIN_U8("graphics/field_effect
 static const u8 sEmotion_QuestionMarkGfx[] = INCBIN_U8("graphics/field_effects/pics/emotion_question.4bpp");
 static const u8 sEmotion_HeartGfx[] = INCBIN_U8("graphics/field_effects/pics/emotion_heart.4bpp");
 
-static u8 (*const sDirectionalApproachDistanceFuncs[])(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y) =
+static u16 (*const sDirectionalApproachDistanceFuncs[])(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y) =
 {
     GetTrainerApproachDistanceSouth,
     GetTrainerApproachDistanceNorth,
@@ -249,7 +249,7 @@ static u8 CheckTrainer(u8 objectEventId)
 {
     const u8 *scriptPtr;
     u8 numTrainers = 1;
-    u8 approachDistance;
+    u16 approachDistance;
 
     if (InTrainerHill() == TRUE)
         scriptPtr = GetTrainerHillTrainerScript();
@@ -289,7 +289,7 @@ static u8 CheckTrainer(u8 objectEventId)
         gApproachingTrainers[gNoOfApproachingTrainers].objectEventId = objectEventId;
         gApproachingTrainers[gNoOfApproachingTrainers].trainerScriptPtr = scriptPtr;
         gApproachingTrainers[gNoOfApproachingTrainers].radius = approachDistance;
-        InitTrainerApproachTask(&gObjectEvents[objectEventId], approachDistance - 1);
+        InitTrainerApproachTask(&gObjectEvents[objectEventId], approachDistance);
         gNoOfApproachingTrainers++;
 
         return numTrainers;
@@ -298,23 +298,25 @@ static u8 CheckTrainer(u8 objectEventId)
     return 0;
 }
 
-static u8 GetTrainerApproachDistance(struct ObjectEvent *trainerObj)
+static u16 GetTrainerApproachDistance(struct ObjectEvent *trainerObj)
 {
     s16 x, y;
     u8 i;
-    u8 approachDistance;
+    s16 approachDistance;
 
     PlayerGetDestCoords(&x, &y);
     if (trainerObj->trainerType == TRAINER_TYPE_NORMAL)  // can only see in one direction
     {
-        approachDistance = sDirectionalApproachDistanceFuncs[trainerObj->facingDirection - 1](trainerObj, trainerObj->trainerRange_berryTreeId, x, y);
+        // approachDistance = sDirectionalApproachDistanceFuncs[trainerObj->facingDirection - 1](trainerObj, trainerObj->trainerRange_berryTreeId << 4, x, y);
+        approachDistance = trainerObj->trainerRange_berryTreeId << 4;
         return CheckPathBetweenTrainerAndPlayer(trainerObj, approachDistance, trainerObj->facingDirection);
     }
     else // TRAINER_TYPE_SEE_ALL_DIRECTIONS, TRAINER_TYPE_BURIED
     {
         for (i = 0; i < ARRAY_COUNT(sDirectionalApproachDistanceFuncs); i++)
         {
-            approachDistance = sDirectionalApproachDistanceFuncs[i](trainerObj, trainerObj->trainerRange_berryTreeId, x, y);
+            // approachDistance = sDirectionalApproachDistanceFuncs[i](trainerObj, trainerObj->trainerRange_berryTreeId << 4, x, y);
+            approachDistance = trainerObj->trainerRange_berryTreeId << 4;
             if (CheckPathBetweenTrainerAndPlayer(trainerObj, approachDistance, i + 1)) // directions are 1-4 instead of 0-3. south north west east
                 return approachDistance;
         }
@@ -323,10 +325,14 @@ static u8 GetTrainerApproachDistance(struct ObjectEvent *trainerObj)
     return 0;
 }
 
+#define TRAINER_XY_SIGHT_RANGE 16
+
 // Returns how far south the player is from trainer. 0 if out of trainer's sight.
-static u8 GetTrainerApproachDistanceSouth(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y)
+// FIXME: are these needed anymore? what about diagonal directions?
+static u16 GetTrainerApproachDistanceSouth(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y)
 {
-    if (trainerObj->currentCoords.x == x
+    if (x >= trainerObj->currentCoords.x - TRAINER_XY_SIGHT_RANGE
+     && x <= trainerObj->currentCoords.x + TRAINER_XY_SIGHT_RANGE
      && y > trainerObj->currentCoords.y
      && y <= trainerObj->currentCoords.y + range)
         return (y - trainerObj->currentCoords.y);
@@ -335,9 +341,10 @@ static u8 GetTrainerApproachDistanceSouth(struct ObjectEvent *trainerObj, s16 ra
 }
 
 // Returns how far north the player is from trainer. 0 if out of trainer's sight.
-static u8 GetTrainerApproachDistanceNorth(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y)
+static u16 GetTrainerApproachDistanceNorth(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y)
 {
-    if (trainerObj->currentCoords.x == x
+    if (x >= trainerObj->currentCoords.x - TRAINER_XY_SIGHT_RANGE
+     && x <= trainerObj->currentCoords.x + TRAINER_XY_SIGHT_RANGE
      && y < trainerObj->currentCoords.y
      && y >= trainerObj->currentCoords.y - range)
         return (trainerObj->currentCoords.y - y);
@@ -346,9 +353,10 @@ static u8 GetTrainerApproachDistanceNorth(struct ObjectEvent *trainerObj, s16 ra
 }
 
 // Returns how far west the player is from trainer. 0 if out of trainer's sight.
-static u8 GetTrainerApproachDistanceWest(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y)
+static u16 GetTrainerApproachDistanceWest(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y)
 {
-    if (trainerObj->currentCoords.y == y
+    if (y >= trainerObj->currentCoords.y - TRAINER_XY_SIGHT_RANGE
+     && y <= trainerObj->currentCoords.y + TRAINER_XY_SIGHT_RANGE
      && x < trainerObj->currentCoords.x
      && x >= trainerObj->currentCoords.x - range)
         return (trainerObj->currentCoords.x - x);
@@ -357,9 +365,10 @@ static u8 GetTrainerApproachDistanceWest(struct ObjectEvent *trainerObj, s16 ran
 }
 
 // Returns how far east the player is from trainer. 0 if out of trainer's sight.
-static u8 GetTrainerApproachDistanceEast(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y)
+static u16 GetTrainerApproachDistanceEast(struct ObjectEvent *trainerObj, s16 range, s16 x, s16 y)
 {
-    if (trainerObj->currentCoords.y == y
+    if (y >= trainerObj->currentCoords.y - TRAINER_XY_SIGHT_RANGE
+     && y <= trainerObj->currentCoords.y + TRAINER_XY_SIGHT_RANGE
      && x > trainerObj->currentCoords.x
      && x <= trainerObj->currentCoords.x + range)
         return (x - trainerObj->currentCoords.x);
@@ -367,12 +376,10 @@ static u8 GetTrainerApproachDistanceEast(struct ObjectEvent *trainerObj, s16 ran
         return 0;
 }
 
-static u8 CheckPathBetweenTrainerAndPlayer(struct ObjectEvent *trainerObj, u8 approachDistance, u8 direction)
+static u16 CheckPathBetweenTrainerAndPlayer(struct ObjectEvent *trainerObj, u16 approachDistance, u8 direction)
 {
     s16 x, y;
-    u8 rangeX, rangeY;
-    u8 i;
-    u8 collision;
+    u16 i;
 
     if (approachDistance == 0)
         return 0;
@@ -380,26 +387,17 @@ static u8 CheckPathBetweenTrainerAndPlayer(struct ObjectEvent *trainerObj, u8 ap
     x = trainerObj->currentCoords.x;
     y = trainerObj->currentCoords.y;
 
-    MoveCoords(direction, &x, &y);
-    for (i = 0; i < approachDistance - 1; i++, MoveCoords(direction, &x, &y))
+    MoveObjectEventCoords(direction, &x, &y);
+    for (i = 0; i < approachDistance; i += 8, MoveObjectEventCoords(direction, &x, &y))
     {
         // Check for collisions on approach, ignoring the "out of range" collision for regular movement
-        collision = GetCollisionFlagsAtCoords(trainerObj, x, y, direction);
+        u8 collision = GetCollisionFlagsAtCoords(trainerObj, x, y, direction);
         if (collision != 0 && (collision & ~(1 << (COLLISION_OUTSIDE_RANGE - 1))))
-            return 0;
+        {
+            if (collision == 1 << (COLLISION_OBJECT_EVENT - 1))
+                return i;
+        }
     }
-
-    rangeX = trainerObj->rangeX;
-    rangeY = trainerObj->rangeY;
-    trainerObj->rangeX = 0;
-    trainerObj->rangeY = 0;
-
-    collision = GetCollisionAtCoords(trainerObj, x, y, direction);
-
-    trainerObj->rangeX = rangeX;
-    trainerObj->rangeY = rangeY;
-    if (collision == COLLISION_OBJECT_EVENT)
-        return approachDistance;
 
     return 0;
 }
@@ -409,7 +407,7 @@ static u8 CheckPathBetweenTrainerAndPlayer(struct ObjectEvent *trainerObj, u8 ap
 #define tOutOfAshSpriteId   data[4]
 #define tTrainerObjectEventId data[7]
 
-static void InitTrainerApproachTask(struct ObjectEvent *trainerObj, u8 range)
+static void InitTrainerApproachTask(struct ObjectEvent *trainerObj, u16 range)
 {
     struct Task *task;
 
@@ -489,20 +487,31 @@ static bool8 WaitTrainerExclamationMark(u8 taskId, struct Task *task, struct Obj
 // TRSEE_MOVE_TO_PLAYER
 static bool8 TrainerMoveToPlayer(u8 taskId, struct Task *task, struct ObjectEvent *trainerObj)
 {
-    if (!ObjectEventIsMovementOverridden(trainerObj) || ObjectEventClearHeldMovementIfFinished(trainerObj))
+    struct ObjectEvent *playerObj = &gObjectEvents[gPlayerAvatar.objectEventId];
+    int playerX = playerObj->currentCoords.x;
+    int playerY = playerObj->currentCoords.y;
+    int diffX = playerX - trainerObj->currentCoords.x;
+    int diffY = playerY - trainerObj->currentCoords.y;
+
+    // get close up and personal like this stranger is about to hug you
+    if (abs(diffX) > 16 || abs(diffY) > 16)
     {
-        if (task->tTrainerRange)
+        if (!ObjectEventIsMovementOverridden(trainerObj) || ObjectEventClearHeldMovementIfFinished(trainerObj))
         {
+            // TODO: could be better?
             ObjectEventSetHeldMovement(trainerObj, GetWalkNormalMovementAction(trainerObj->facingDirection));
-            task->tTrainerRange--;
-        }
-        else
-        {
-            ObjectEventSetHeldMovement(trainerObj, MOVEMENT_ACTION_FACE_PLAYER);
-            task->tFuncId++; // TRSEE_PLAYER_FACE
+            trainerObj->targetCoords.x = trainerObj->currentCoords.x + ((diffX * 16) / task->tTrainerRange);
+            trainerObj->targetCoords.y = trainerObj->currentCoords.y + ((diffY * 16) / task->tTrainerRange);
+            trainerObj->useTargetCoords = TRUE;
         }
     }
-    return FALSE;
+    else
+    {
+        ObjectEventClearHeldMovementIfActive(trainerObj);
+        ObjectEventSetHeldMovement(trainerObj, MOVEMENT_ACTION_FACE_PLAYER);
+        task->tFuncId++; // TRSEE_PLAYER_FACE
+        return FALSE;
+    }
 }
 
 // TRSEE_PLAYER_FACE

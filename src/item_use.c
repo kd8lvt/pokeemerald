@@ -200,7 +200,7 @@ void ItemUseOutOfBattle_Bike(u8 taskId)
     s16 coordsX;
     u8 behavior;
     PlayerGetDestCoords(&coordsX, &coordsY);
-    behavior = MapGridGetMetatileBehaviorAt(coordsX, coordsY);
+    behavior = ObjectEventGetMetatileBehaviorAt(coordsX, coordsY);
     if (FlagGet(FLAG_SYS_CYCLING_ROAD) == TRUE || MetatileBehavior_IsVerticalRail(behavior) == TRUE || MetatileBehavior_IsHorizontalRail(behavior) == TRUE || MetatileBehavior_IsIsolatedVerticalRail(behavior) == TRUE || MetatileBehavior_IsIsolatedHorizontalRail(behavior) == TRUE)
         DisplayCannotDismountBikeMessage(taskId, tUsingRegisteredKeyItem);
     else
@@ -232,7 +232,7 @@ static bool32 CanFish(void)
     u16 tileBehavior;
 
     GetXYCoordsOneStepInFrontOfPlayer(&x, &y);
-    tileBehavior = MapGridGetMetatileBehaviorAt(x, y);
+    tileBehavior = ObjectEventGetMetatileBehaviorAt(x, y);
 
     if (MetatileBehavior_IsWaterfall(tileBehavior))
         return FALSE;
@@ -247,7 +247,7 @@ static bool32 CanFish(void)
     }
     else
     {
-        if (MetatileBehavior_IsSurfableWaterOrUnderwater(tileBehavior) && MapGridGetCollisionAt(x, y) == 0)
+        if (MetatileBehavior_IsSurfableWaterOrUnderwater(tileBehavior) && ObjectEventGetCollisionAt(x, y) == 0)
             return TRUE;
         if (MetatileBehavior_IsBridgeOverWaterNoEdge(tileBehavior) == TRUE)
             return TRUE;
@@ -345,7 +345,7 @@ static bool8 ItemfinderCheckForHiddenItems(const struct MapEvents *events, u8 ta
 {
     int itemX, itemY;
     s16 playerX, playerY, i, distanceX, distanceY;
-    PlayerGetDestCoords(&playerX, &playerY);
+    PlayerGetDestCoordsInTiles(&playerX, &playerY);
     gTasks[taskId].tItemFound = FALSE;
 
     for (i = 0; i < events->bgEventCount; i++)
@@ -443,7 +443,7 @@ static void CheckForHiddenItemsInMapConnection(u8 taskId)
     s16 var1 = MAP_OFFSET;
     s16 var2 = MAP_OFFSET;
 
-    PlayerGetDestCoords(&playerX, &playerY);
+    PlayerGetDestCoordsInTiles(&playerX, &playerY);
 
     // Player can see 7 metatiles on either side horizontally
     // and 5 metatiles on either side vertically
@@ -729,7 +729,7 @@ static bool8 TryToWaterSudowoodo(void)
     u8 objId;
     GetXYCoordsOneStepInFrontOfPlayer(&x, &y);
     elevation = PlayerGetElevation();
-    objId = GetObjectEventIdByPosition(x, y, elevation);
+    objId = GetObjectEventIdAroundPosition(x, y, elevation);
     if (objId == OBJECT_EVENTS_COUNT || gObjectEvents[objId].graphicsId != OBJ_EVENT_GFX_SUDOWOODO)
         return FALSE;
     else

@@ -867,8 +867,8 @@ static u8 GetBikeCollision(u8 direction)
     struct ObjectEvent *playerObjEvent = &gObjectEvents[gPlayerAvatar.objectEventId];
     s16 x = playerObjEvent->currentCoords.x;
     s16 y = playerObjEvent->currentCoords.y;
-    MoveCoords(direction, &x, &y);
-    metatitleBehavior = MapGridGetMetatileBehaviorAt(x, y);
+    MoveObjectEventCoords(direction, &x, &y);
+    metatitleBehavior = ObjectEventGetMetatileBehaviorAt(x, y);
     return GetBikeCollisionAt(playerObjEvent, x, y, direction, metatitleBehavior);
 }
 
@@ -953,7 +953,7 @@ bool8 IsBikingDisallowedByPlayer(void)
     if (!(gPlayerAvatar.flags & (PLAYER_AVATAR_FLAG_SURFING | PLAYER_AVATAR_FLAG_UNDERWATER)))
     {
         PlayerGetDestCoords(&x, &y);
-        tileBehavior = MapGridGetMetatileBehaviorAt(x, y);
+        tileBehavior = ObjectEventGetMetatileBehaviorAt(x, y);
         if (!IsRunningDisallowedByMetatile(tileBehavior))
             return FALSE;
     }
@@ -1042,7 +1042,7 @@ void Bike_HandleBumpySlopeJump(void)
     if (gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_ACRO_BIKE)
     {
         PlayerGetDestCoords(&x, &y);
-        tileBehavior = MapGridGetMetatileBehaviorAt(x, y);
+        tileBehavior = ObjectEventGetMetatileBehaviorAt(x, y);
         if (MetatileBehavior_IsBumpySlope(tileBehavior))
         {
             gPlayerAvatar.acroBikeState = ACRO_STATE_WHEELIE_STANDING;

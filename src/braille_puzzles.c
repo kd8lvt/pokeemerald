@@ -64,11 +64,13 @@ bool8 ShouldDoBrailleDigEffect(void)
      && (gSaveBlock1Ptr->location.mapGroup == MAP_GROUP(SEALED_CHAMBER_OUTER_ROOM)
      && gSaveBlock1Ptr->location.mapNum == MAP_NUM(SEALED_CHAMBER_OUTER_ROOM)))
     {
-        if (gSaveBlock1Ptr->pos.x == 10 && gSaveBlock1Ptr->pos.y == 3)
+        int posX = gSaveBlock1Ptr->pos.x >> 4;
+        int posY = gSaveBlock1Ptr->pos.y >> 4;
+        if (posX == 10 && posY == 3)
             return TRUE;
-        if (gSaveBlock1Ptr->pos.x == 9 && gSaveBlock1Ptr->pos.y == 3)
+        if (posX == 9 && posY == 3)
             return TRUE;
-        if (gSaveBlock1Ptr->pos.x == 11 && gSaveBlock1Ptr->pos.y == 3)
+        if (posX == 11 && posY == 3)
             return TRUE;
     }
 
@@ -170,17 +172,19 @@ bool8 ShouldDoBrailleRegirockEffect(void)
         && gSaveBlock1Ptr->location.mapGroup == MAP_GROUP(DESERT_RUINS)
         && gSaveBlock1Ptr->location.mapNum == MAP_NUM(DESERT_RUINS))
     {
-        if (gSaveBlock1Ptr->pos.x == 6 && gSaveBlock1Ptr->pos.y == 23)
+        int posX = gSaveBlock1Ptr->pos.x >> 4;
+        int posY = gSaveBlock1Ptr->pos.y >> 4;
+        if (posX == 6 && posY == 23)
         {
             sIsRegisteelPuzzle = FALSE;
             return TRUE;
         }
-        else if (gSaveBlock1Ptr->pos.x == 5 && gSaveBlock1Ptr->pos.y == 23)
+        else if (posX == 5 && posY == 23)
         {
             sIsRegisteelPuzzle = FALSE;
             return TRUE;
         }
-        else if (gSaveBlock1Ptr->pos.x == 7 && gSaveBlock1Ptr->pos.y == 23)
+        else if (posX == 7 && posY == 23)
         {
             sIsRegisteelPuzzle = FALSE;
             return TRUE;
@@ -220,7 +224,9 @@ bool8 ShouldDoBrailleRegisteelEffect(void)
 {
     if (!FlagGet(FLAG_SYS_REGISTEEL_PUZZLE_COMPLETED) && (gSaveBlock1Ptr->location.mapGroup == MAP_GROUP(ANCIENT_TOMB) && gSaveBlock1Ptr->location.mapNum == MAP_NUM(ANCIENT_TOMB)))
     {
-        if (gSaveBlock1Ptr->pos.x == 8 && gSaveBlock1Ptr->pos.y == 25)
+        int posX = gSaveBlock1Ptr->pos.x >> 4;
+        int posY = gSaveBlock1Ptr->pos.y >> 4;
+        if (posX == 8 && posY == 25)
         {
             sIsRegisteelPuzzle = TRUE;
             return TRUE;
@@ -296,7 +302,7 @@ bool8 ShouldDoBrailleRegicePuzzle(void)
         {
             u8 xPos = sRegicePathCoords[i][0];
             u8 yPos = sRegicePathCoords[i][1];
-            if (gSaveBlock1Ptr->pos.x == xPos && gSaveBlock1Ptr->pos.y == yPos)
+            if (gSaveBlock1Ptr->pos.x>>4 == xPos && gSaveBlock1Ptr->pos.y>>4 == yPos)
             {
                 u16 varValue;
 
@@ -324,7 +330,7 @@ bool8 ShouldDoBrailleRegicePuzzle(void)
                     return FALSE;
 
                 // This final check is redundant.
-                if (gSaveBlock1Ptr->pos.x == 8 && gSaveBlock1Ptr->pos.y == 21)
+                if (gSaveBlock1Ptr->pos.x>>4 == 8 && gSaveBlock1Ptr->pos.y>>4 == 21)
                     return TRUE;
                 else
                     return FALSE;

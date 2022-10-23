@@ -1555,6 +1555,8 @@ void GenerateBattlePyramidFloorLayout(u16 *backupMapData, bool8 setPlayerPositio
                     {
                         gSaveBlock1Ptr->pos.x = (mapLayout->width * (i % PYRAMID_FLOOR_SQUARES_WIDE)) + x;
                         gSaveBlock1Ptr->pos.y = (mapLayout->height * (i / PYRAMID_FLOOR_SQUARES_WIDE)) + y;
+                        gSaveBlock1Ptr->pos.x <<= 4;
+                        gSaveBlock1Ptr->pos.y <<= 4;
                     }
                     map[x] = (layoutMap[x] & (MAPGRID_ELEVATION_MASK | MAPGRID_COLLISION_MASK)) | METATILE_BattlePyramid_Floor;
                 }

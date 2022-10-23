@@ -28,6 +28,7 @@ int ProcessPlayerFieldInput(struct FieldInput *pStruct);
 void overworld_poison_timer_set(void);
 void RestartWildEncounterImmunitySteps(void);
 const u8 *GetObjectEventScriptPointerPlayerFacing(void);
+bool8 TryArrowWarpIfBlocked(void);
 bool8 TryDoDiveWarp(struct MapPosition *position, u16 b);
 int SetCableClubWarp(void);
 u8 TrySetDiveWarp(void);

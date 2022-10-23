@@ -700,13 +700,14 @@ static void RotatingGate_LoadPuzzleConfig(void)
 static void RotatingGate_CreateGatesWithinViewport(s16 deltaX, s16 deltaY)
 {
     u8 i;
+    s16 x, x2, y, y2;
 
     // Calculate the bounding box of the camera
     // Same as RotatingGate_DestroyGatesOutsideViewport
-    s16 x = gSaveBlock1Ptr->pos.x - 2;
-    s16 x2 = gSaveBlock1Ptr->pos.x + MAP_OFFSET_W + 2;
-    s16 y = gSaveBlock1Ptr->pos.y - 2;
-    s16 y2 = gSaveBlock1Ptr->pos.y + MAP_OFFSET_H;
+    x = (gSaveBlock1Ptr->pos.x >> 4) - 2;
+    x2 = (gSaveBlock1Ptr->pos.x >> 4) + MAP_OFFSET_W + 2;
+    y = (gSaveBlock1Ptr->pos.y >> 4) - 2;
+    y2 = (gSaveBlock1Ptr->pos.y >> 4) + MAP_OFFSET_H;
 
     for (i = 0; i < sRotatingGate_PuzzleCount; i++)
     {
@@ -741,8 +742,8 @@ static u8 RotatingGate_CreateGate(u8 gateId, s16 deltaX, s16 deltaY)
     if (spriteId == MAX_SPRITES)
         return MAX_SPRITES;
 
-    x = gate->x + MAP_OFFSET;
-    y = gate->y + MAP_OFFSET;
+    x = (gate->x + MAP_OFFSET) << 4;
+    y = (gate->y + MAP_OFFSET) << 4;
 
     sprite = &gSprites[spriteId];
     sprite->data[0] = gateId;
@@ -960,6 +961,8 @@ bool8 CheckForRotatingGatePuzzleCollision(u8 direction, s16 x, s16 y)
 
     if (!GetCurrentMapRotatingGatePuzzleType())
         return FALSE;
+    x >>= 4;
+    y >>= 4;
     for (i = 0; i < sRotatingGate_PuzzleCount; i++)
     {
         s16 gateX = sRotatingGate_PuzzleConfig[i].x + MAP_OFFSET;
@@ -998,6 +1001,8 @@ bool8 CheckForRotatingGatePuzzleCollisionWithoutAnimation(u8 direction, s16 x, s
 
     if (!GetCurrentMapRotatingGatePuzzleType())
         return FALSE;
+    x >>= 4;
+    y >>= 4;
     for (i = 0; i < sRotatingGate_PuzzleCount; i++)
     {
         s16 gateX = sRotatingGate_PuzzleConfig[i].x + MAP_OFFSET;

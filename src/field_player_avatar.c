@@ -96,6 +96,7 @@ static void PlayerRun(u8);
 static void PlayerNotOnBikeCollide(u8);
 static void PlayerNotOnBikeCollideWithFarawayIslandMew(u8);
 
+static u8 PlayerCheckCollision(u8 direction);
 static void PlayCollisionSoundIfNotFacingWarp(u8);
 
 static void HideShowWarpArrow(struct ObjectEvent *);
@@ -326,6 +327,17 @@ static u8 ObjectEventCB2_NoMovement2(void)
     return 0;
 }
 
+static bool8 PlayerCanRun(void)
+{
+    if (!FlagGet(FLAG_SYS_B_DASH))
+        return FALSE;
+    if (IsRunningDisallowed(gObjectEvents[gPlayerAvatar.objectEventId].currentMetatileBehavior))
+        return FALSE;
+    if (gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_UNDERWATER)
+        return FALSE;
+    return TRUE;
+}
+
 void PlayerStep(u8 direction, u16 newKeys, u16 heldKeys)
 {
     struct ObjectEvent *playerObjEvent = &gObjectEvents[gPlayerAvatar.objectEventId];
@@ -334,17 +346,79 @@ void PlayerStep(u8 direction, u16 newKeys, u16 heldKeys)
     if (gPlayerAvatar.preventStep == FALSE)
     {
         Bike_TryAcroBikeHistoryUpdate(newKeys, heldKeys);
-        if (TryInterruptObjectEventSpecialAnim(playerObjEvent, direction) == 0)
+        if (TryInterruptObjectEventSpecialAnim(playerObjEvent, direction) == FALSE)
         {
+            gPlayerAvatar.isMoving = FALSE;
             npc_clear_strange_bits(playerObjEvent);
             DoPlayerAvatarTransition();
-            if (TryDoMetatileBehaviorForcedMovement() == 0)
+            if (TryDoMetatileBehaviorForcedMovement() == FALSE)
             {
                 MovePlayerAvatarUsingKeypadInput(direction, newKeys, heldKeys);
                 PlayerAllowForcedMovementIfMovingSameDirection();
             }
         }
+
+        if (gPlayerAvatar.isMoving == TRUE)
+        {
+            u8 collision;
+            u8 playerDirection = playerObjEvent->movementDirection;
+            bool8 doMovement = FALSE;
+            bool8 isRunning;
+
+            if (direction != DIR_NONE && playerDirection != DIR_NONE && playerDirection != direction)
+            {
+                doMovement = TRUE;
+            }
+            else if (PlayerCheckNotMoving(direction))
+            {
+                return;
+            }
+
+            isRunning = gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_DASH;
+            if (PlayerCanRun() && (heldKeys & B_BUTTON))
+            {
+                if (!isRunning)
+                {
+                    doMovement = TRUE;
+                }
+            }
+            else if (isRunning)
+            {
+                doMovement = TRUE;
+                gPlayerAvatar.flags &= ~PLAYER_AVATAR_FLAG_DASH;
+            }
+
+            if (doMovement)
+            {
+                ObjectEventClearHeldMovement(playerObjEvent);
+                MovePlayerAvatarUsingKeypadInput(direction, newKeys, heldKeys);
+            }
+
+            collision = PlayerCheckCollision(direction);
+            if (collision == 1)
+            {
+                gPlayerAvatar.moveBlocked = TRUE;
+                playerObjEvent->moveBlocked = TRUE;
+            }
+            else if (collision != 0)
+            {
+                gPlayerAvatar.moveBlocked = FALSE;
+                playerObjEvent->moveBlocked = FALSE;
+            }
+        }
     }
+}
+
+bool8 PlayerCheckNotMoving(u8 direction)
+{
+    if (gPlayerAvatar.isMoving == TRUE && direction == DIR_NONE)
+    {
+        struct ObjectEvent *playerObjEvent = &gObjectEvents[gPlayerAvatar.objectEventId];
+        ObjectEventClearHeldMovement(playerObjEvent);
+        gPlayerAvatar.isMoving = FALSE;
+        return TRUE;
+    }
+    return FALSE;
 }
 
 static bool8 TryInterruptObjectEventSpecialAnim(struct ObjectEvent *playerObjEvent, u8 direction)
@@ -389,6 +463,7 @@ static void npc_clear_strange_bits(struct ObjectEvent *objEvent)
 
 static void MovePlayerAvatarUsingKeypadInput(u8 direction, u16 newKeys, u16 heldKeys)
 {
+    // TODO: bicycle movement
     if (gPlayerAvatar.flags & (PLAYER_AVATAR_FLAG_MACH_BIKE | PLAYER_AVATAR_FLAG_ACRO_BIKE))
         MovePlayerOnBike(direction, newKeys, heldKeys);
     else
@@ -602,7 +677,7 @@ static void PlayerNotOnBikeTurningInPlace(u8 direction, u16 heldKeys)
     PlayerTurnInPlace(direction);
 }
 
-static void PlayerNotOnBikeMoving(u8 direction, u16 heldKeys)
+static u8 PlayerCheckCollision(u8 direction)
 {
     u8 collision = CheckForPlayerAvatarCollision(direction);
 
@@ -610,22 +685,40 @@ static void PlayerNotOnBikeMoving(u8 direction, u16 heldKeys)
     {
         if (collision == COLLISION_LEDGE_JUMP)
         {
+            // FIXME: doesn't work sometimes
             PlayerJumpLedge(direction);
-            return;
+            return 2;
         }
         else if (collision == COLLISION_OBJECT_EVENT && IsPlayerCollidingWithFarawayIslandMew(direction))
         {
             PlayerNotOnBikeCollideWithFarawayIslandMew(direction);
-            return;
+            return 1;
         }
         else
         {
             u8 adjustedCollision = collision - COLLISION_STOP_SURFING;
             if (adjustedCollision > 3)
                 PlayerNotOnBikeCollide(direction);
-            return;
+            return 1;
         }
     }
+
+    return 0;
+}
+
+static void PlayerNotOnBikeMoving(u8 direction, u16 heldKeys)
+{
+    u8 collision = PlayerCheckCollision(direction);
+    if (collision != 0)
+    {
+        if (collision == 1)
+        {
+            gPlayerAvatar.moveBlocked = TRUE;
+        }
+        return;
+    }
+
+    gPlayerAvatar.isMoving = TRUE;
 
     if (gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_SURFING)
     {
@@ -634,8 +727,7 @@ static void PlayerNotOnBikeMoving(u8 direction, u16 heldKeys)
         return;
     }
 
-    if (!(gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_UNDERWATER) && (heldKeys & B_BUTTON) && FlagGet(FLAG_SYS_B_DASH)
-     && IsRunningDisallowed(gObjectEvents[gPlayerAvatar.objectEventId].currentMetatileBehavior) == 0)
+    if (PlayerCanRun() && (heldKeys & B_BUTTON))
     {
         PlayerRun(direction);
         gPlayerAvatar.flags |= PLAYER_AVATAR_FLAG_DASH;
@@ -654,8 +746,8 @@ static u8 CheckForPlayerAvatarCollision(u8 direction)
 
     x = playerObjEvent->currentCoords.x;
     y = playerObjEvent->currentCoords.y;
-    MoveCoords(direction, &x, &y);
-    return CheckForObjectEventCollision(playerObjEvent, x, y, direction, MapGridGetMetatileBehaviorAt(x, y));
+    MoveObjectEventCoords(direction, &x, &y);
+    return CheckForObjectEventCollision(playerObjEvent, x, y, direction, ObjectEventGetMetatileBehaviorAt(x, y));
 }
 
 static u8 CheckForPlayerAvatarStaticCollision(u8 direction)
@@ -665,8 +757,8 @@ static u8 CheckForPlayerAvatarStaticCollision(u8 direction)
 
     x = playerObjEvent->currentCoords.x;
     y = playerObjEvent->currentCoords.y;
-    MoveCoords(direction, &x, &y);
-    return CheckForObjectEventStaticCollision(playerObjEvent, x, y, direction, MapGridGetMetatileBehaviorAt(x, y));
+    MoveObjectEventCoords(direction, &x, &y);
+    return CheckForObjectEventStaticCollision(playerObjEvent, x, y, direction, ObjectEventGetMetatileBehaviorAt(x, y));
 }
 
 u8 CheckForObjectEventCollision(struct ObjectEvent *objectEvent, s16 x, s16 y, u8 direction, u8 metatileBehavior)
@@ -708,8 +800,8 @@ static u8 CheckForObjectEventStaticCollision(struct ObjectEvent *objectEvent, s1
 static bool8 CanStopSurfing(s16 x, s16 y, u8 direction)
 {
     if ((gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_SURFING)
-     && MapGridGetElevationAt(x, y) == 3
-     && GetObjectEventIdByPosition(x, y, 3) == OBJECT_EVENTS_COUNT)
+     && ObjectEventGetElevationAt(x, y) == 3
+     && GetObjectEventIdAroundPosition(x, y, 3) == OBJECT_EVENTS_COUNT)
     {
         CreateStopSurfingTask(direction);
         return TRUE;
@@ -732,15 +824,15 @@ static bool8 TryPushBoulder(s16 x, s16 y, u8 direction)
 {
     if (FlagGet(FLAG_SYS_USE_STRENGTH))
     {
-        u8 objectEventId = GetObjectEventIdByXY(x, y);
+        u8 objectEventId = GetObjectEventIdAroundXY(x, y);
 
         if (objectEventId != OBJECT_EVENTS_COUNT && gObjectEvents[objectEventId].graphicsId == OBJ_EVENT_GFX_PUSHABLE_BOULDER)
         {
             x = gObjectEvents[objectEventId].currentCoords.x;
             y = gObjectEvents[objectEventId].currentCoords.y;
-            MoveCoords(direction, &x, &y);
+            MoveObjectEventCoords(direction, &x, &y);
             if (GetCollisionAtCoords(&gObjectEvents[objectEventId], x, y, direction) == COLLISION_NONE
-             && MetatileBehavior_IsNonAnimDoor(MapGridGetMetatileBehaviorAt(x, y)) == FALSE)
+             && MetatileBehavior_IsNonAnimDoor(ObjectEventGetMetatileBehaviorAt(x, y)) == FALSE)
             {
                 StartStrengthAnim(objectEventId, direction);
                 return TRUE;
@@ -754,6 +846,7 @@ static void CheckAcroBikeCollision(s16 x, s16 y, u8 metatileBehavior, u8 *collis
 {
     u8 i;
 
+    // x and y are unused
     for (i = 0; i < NUM_ACRO_BIKE_COLLISIONS; i++)
     {
         if (sAcroBikeTrickMetatiles[i](metatileBehavior))
@@ -776,7 +869,7 @@ bool8 IsPlayerCollidingWithFarawayIslandMew(u8 direction)
     playerX = object->currentCoords.x;
     playerY = object->currentCoords.y;
 
-    MoveCoords(direction, &playerX, &playerY);
+    MoveObjectEventCoords(direction, &playerX, &playerY);
     mewObjectId = GetObjectEventIdByLocalIdAndMap(1, MAP_NUM(FARAWAY_ISLAND_INTERIOR), MAP_GROUP(FARAWAY_ISLAND_INTERIOR));
     if (mewObjectId == OBJECT_EVENTS_COUNT)
         return FALSE;
@@ -879,6 +972,14 @@ static void PlayerAvatarTransition_ReturnToField(struct ObjectEvent *objEvent)
 
 void UpdatePlayerAvatarTransitionState(void)
 {
+    struct ObjectEvent *playerObjEvent = &gObjectEvents[gPlayerAvatar.objectEventId];
+    if (playerObjEvent->tookStepX || playerObjEvent->tookStepY)
+    {
+        gPlayerAvatar.tookStep = TRUE;
+        playerObjEvent->tookStepX = playerObjEvent->tookStepY = FALSE;
+    }
+
+    gPlayerAvatar.moveBlocked = FALSE;
     gPlayerAvatar.tileTransitionState = T_NOT_MOVING;
     if (PlayerIsAnimActive())
     {
@@ -887,10 +988,13 @@ void UpdatePlayerAvatarTransitionState(void)
             if (!PlayerAnimIsMultiFrameStationary())
                 gPlayerAvatar.tileTransitionState = T_TILE_TRANSITION;
         }
-        else
+        else if (gPlayerAvatar.tookStep)
         {
             if (!PlayerAnimIsMultiFrameStationaryAndStateNotTurning())
+            {
                 gPlayerAvatar.tileTransitionState = T_TILE_CENTER;
+                gPlayerAvatar.tookStep = FALSE;
+            }
         }
     }
 }
@@ -946,6 +1050,7 @@ void PlayerSetAnimId(u8 movementActionId, u8 copyableMovement)
 {
     if (!PlayerIsAnimActive())
     {
+        // FIXME: copyable movements likely don't work anymore
         PlayerSetCopyableMovement(copyableMovement);
         ObjectEventSetHeldMovement(&gObjectEvents[gPlayerAvatar.objectEventId], movementActionId);
     }
@@ -1010,6 +1115,7 @@ void PlayerTurnInPlace(u8 direction)
 
 void PlayerJumpLedge(u8 direction)
 {
+    gPlayerAvatar.isMoving = FALSE;
     PlaySE(SE_LEDGE);
     PlayerSetAnimId(GetJump2MovementAction(direction), COPY_MOVE_JUMP2);
 }
@@ -1102,11 +1208,12 @@ static void PlayCollisionSoundIfNotFacingWarp(u8 direction)
         if (direction == DIR_NORTH)
         {
             PlayerGetDestCoords(&x, &y);
-            MoveCoords(direction, &x, &y);
-            if (MetatileBehavior_IsWarpDoor(MapGridGetMetatileBehaviorAt(x, y)))
+            MoveObjectEventCoords(direction, &x, &y);
+            if (MetatileBehavior_IsWarpDoor(ObjectEventGetMetatileBehaviorAt(x, y)))
                 return;
         }
-        PlaySE(SE_WALL_HIT);
+        if (gPlayerAvatar.moveBlocked == FALSE)
+            PlaySE(SE_WALL_HIT);
     }
 }
 
@@ -1114,6 +1221,13 @@ void GetXYCoordsOneStepInFrontOfPlayer(s16 *x, s16 *y)
 {
     *x = gObjectEvents[gPlayerAvatar.objectEventId].currentCoords.x;
     *y = gObjectEvents[gPlayerAvatar.objectEventId].currentCoords.y;
+    MoveCoordsInMapCoordIncrement(GetPlayerFacingDirection(), x, y);
+}
+
+void GetTileCoordsInFrontOfPlayer(s16 *x, s16 *y)
+{
+    *x = gObjectEvents[gPlayerAvatar.objectEventId].currentCoords.x >> 4;
+    *y = gObjectEvents[gPlayerAvatar.objectEventId].currentCoords.y >> 4;
     MoveCoords(GetPlayerFacingDirection(), x, y);
 }
 
@@ -1123,14 +1237,21 @@ void PlayerGetDestCoords(s16 *x, s16 *y)
     *y = gObjectEvents[gPlayerAvatar.objectEventId].currentCoords.y;
 }
 
+void PlayerGetDestCoordsInTiles(s16 *x, s16 *y)
+{
+    PlayerGetDestCoords(x, y);
+    *x >>= 4;
+    *y >>= 4;
+}
+
 u8 player_get_pos_including_state_based_drift(s16 *x, s16 *y)
 {
     struct ObjectEvent *object = &gObjectEvents[gPlayerAvatar.objectEventId];
 
     if (object->heldMovementActive && !object->heldMovementFinished && !gSprites[object->spriteId].data[2])
     {
-        *x = object->currentCoords.x;
-        *y = object->currentCoords.y;
+        *x = object->currentCoords.x >> 4;
+        *y = object->currentCoords.y >> 4;
 
         switch (object->movementActionId)
         {
@@ -1304,10 +1425,10 @@ bool8 IsPlayerFacingSurfableFishableWater(void)
     s16 x = playerObjEvent->currentCoords.x;
     s16 y = playerObjEvent->currentCoords.y;
 
-    MoveCoords(playerObjEvent->facingDirection, &x, &y);
+    MoveObjectEventCoords(playerObjEvent->facingDirection, &x, &y);
     if (GetCollisionAtCoords(playerObjEvent, x, y, playerObjEvent->facingDirection) == COLLISION_ELEVATION_MISMATCH
      && PlayerGetElevation() == 3
-     && MetatileBehavior_IsSurfableFishableWater(MapGridGetMetatileBehaviorAt(x, y)))
+     && MetatileBehavior_IsSurfableFishableWater(ObjectEventGetMetatileBehaviorAt(x, y)))
         return TRUE;
     else
         return FALSE;
@@ -1433,9 +1554,11 @@ static void HideShowWarpArrow(struct ObjectEvent *objectEvent)
         if (sArrowWarpMetatileBehaviorChecks2[x](metatileBehavior) && direction == objectEvent->movementDirection)
         {
             // Show warp arrow if applicable
+            // FIXME: arrow needs to show one step after where the warp is
+            // (not just in front of the player)
             x = objectEvent->currentCoords.x;
             y = objectEvent->currentCoords.y;
-            MoveCoords(direction, &x, &y);
+            MoveCoordsInMapCoordIncrement(direction, &x, &y);
             ShowWarpArrowSprite(objectEvent->warpArrowSpriteId, direction, x, y);
             return;
         }

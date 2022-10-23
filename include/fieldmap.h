@@ -22,17 +22,22 @@
 extern struct BackupMapLayout gBackupMapLayout;
 
 u32 MapGridGetMetatileIdAt(int, int);
+u32 ObjectEventGetMetatileIdAt(int, int);
 u32 MapGridGetMetatileBehaviorAt(int, int);
+u32 ObjectEventGetMetatileBehaviorAt(int, int);
 void MapGridSetMetatileIdAt(int, int, u16);
 void MapGridSetMetatileEntryAt(int, int, u16);
 void GetCameraCoords(u16 *, u16 *);
 u8 MapGridGetCollisionAt(int, int);
+u8 ObjectEventGetCollisionAt(int, int);
 int GetMapBorderIdAt(int x, int y);
 bool32 CanCameraMoveInDirection(int direction);
 u16 GetMetatileAttributesById(u16 metatileId);
 void GetCameraFocusCoords(u16 *x, u16 *y);
 u8 MapGridGetMetatileLayerTypeAt(int x, int y);
+u8 ObjectEventGetMetatileLayerTypeAt(int x, int y);
 u8 MapGridGetElevationAt(int x, int y);
+u8 ObjectEventGetElevationAt(int x, int y);
 bool8 CameraMove(int deltaX, int deltaY);
 void SaveMapView(void);
 void SetCameraFocusCoords(u16 x, u16 y);

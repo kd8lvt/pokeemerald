@@ -1649,8 +1649,8 @@ static void InitFrontierMapSprites(void)
         if (mapNum == MAP_NUM(BATTLE_FRONTIER_OUTSIDE_WEST)
             || (mapNum == MAP_NUM(BATTLE_FRONTIER_OUTSIDE_EAST) && (x = 55)))
         {
-            x += gSaveBlock1Ptr->pos.x;
-            y = gSaveBlock1Ptr->pos.y;
+            x += gSaveBlock1Ptr->pos.x >> 4;
+            y = gSaveBlock1Ptr->pos.y >> 4;
 
             x /= 8;
             y /= 8;

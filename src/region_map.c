@@ -1000,8 +1000,8 @@ static void InitMapBasedOnPlayerLocation(void)
         sRegionMap->playerIsInCave = FALSE;
         mapWidth = gMapHeader.mapLayout->width;
         mapHeight = gMapHeader.mapLayout->height;
-        x = gSaveBlock1Ptr->pos.x;
-        y = gSaveBlock1Ptr->pos.y;
+        x = gSaveBlock1Ptr->pos.x >> 4;
+        y = gSaveBlock1Ptr->pos.y >> 4;
         if (sRegionMap->mapSecId == MAPSEC_UNDERWATER_SEAFLOOR_CAVERN || sRegionMap->mapSecId == MAPSEC_UNDERWATER_MARINE_CAVE)
             sRegionMap->playerIsInCave = TRUE;
         break;
@@ -1095,15 +1095,15 @@ static void InitMapBasedOnPlayerLocation(void)
     case MAPSEC_ROUTE_126:
     case MAPSEC_UNDERWATER_126:
         x = 0;
-        if (gSaveBlock1Ptr->pos.x > 32)
+        if (gSaveBlock1Ptr->pos.x > 32 << 4)
             x++;
-        if (gSaveBlock1Ptr->pos.x > 51)
+        if (gSaveBlock1Ptr->pos.x > 51 << 4)
             x++;
 
         y = 0;
-        if (gSaveBlock1Ptr->pos.y > 37)
+        if (gSaveBlock1Ptr->pos.y > 37 << 4)
             y++;
-        if (gSaveBlock1Ptr->pos.y > 56)
+        if (gSaveBlock1Ptr->pos.y > 56 << 4)
             y++;
         break;
     case MAPSEC_ROUTE_121:

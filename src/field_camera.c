@@ -23,16 +23,17 @@ struct FieldCameraOffset
     bool8 copyBGToVRAM;
 };
 
-static void RedrawMapSliceNorth(struct FieldCameraOffset *, const struct MapLayout *);
-static void RedrawMapSliceSouth(struct FieldCameraOffset *, const struct MapLayout *);
-static void RedrawMapSliceEast(struct FieldCameraOffset *, const struct MapLayout *);
-static void RedrawMapSliceWest(struct FieldCameraOffset *, const struct MapLayout *);
+static void RedrawMapSliceNorth(struct FieldCameraOffset *, const struct MapLayout *, int, int);
+static void RedrawMapSliceSouth(struct FieldCameraOffset *, const struct MapLayout *, int, int);
+static void RedrawMapSliceEast(struct FieldCameraOffset *, const struct MapLayout *, int, int);
+static void RedrawMapSliceWest(struct FieldCameraOffset *, const struct MapLayout *, int, int);
 static s32 MapPosToBgTilemapOffset(struct FieldCameraOffset *, s32, s32);
 static void DrawWholeMapViewInternal(int, int, const struct MapLayout *);
 static void DrawMetatileAt(const struct MapLayout *, u16, int, int);
 static void DrawMetatile(s32, u16 *, u16);
 static void CameraPanningCB_PanAhead(void);
 
+static struct Coords16 sCameraPosition;
 static struct FieldCameraOffset sFieldCameraOffset;
 static s16 sHorizontalCameraPan;
 static s16 sVerticalCameraPan;
@@ -66,16 +67,31 @@ static void AddCameraPixelOffset(struct FieldCameraOffset *cameraOffset, u32 xOf
     cameraOffset->yPixelOffset += yOffset;
 }
 
+void SetCameraPosition(int x, int y)
+{
+    sCameraPosition.x = x >> 4;
+    sCameraPosition.y = y >> 4;
+}
+
 void ResetFieldCamera(void)
 {
+    int x = gSaveBlock1Ptr->pos.x;
+    int y = gSaveBlock1Ptr->pos.y;
+
     ResetCameraOffset(&sFieldCameraOffset);
+    SetCameraPosition(x, y);
+
+    gFieldCamera.x = x % 16;
+    gFieldCamera.y = y % 16;
+    sFieldCameraOffset.xPixelOffset = gFieldCamera.x;
+    sFieldCameraOffset.yPixelOffset = gFieldCamera.y;
 }
 
 void FieldUpdateBgTilemapScroll(void)
 {
     u32 r4, r5;
-    r5 = sFieldCameraOffset.xPixelOffset + sHorizontalCameraPan;
-    r4 = sVerticalCameraPan + sFieldCameraOffset.yPixelOffset + 8;
+    r5 = sFieldCameraOffset.xPixelOffset + sHorizontalCameraPan - 8;
+    r4 = sVerticalCameraPan + sFieldCameraOffset.yPixelOffset;
 
     SetGpuReg(REG_OFFSET_BG1HOFS, r5);
     SetGpuReg(REG_OFFSET_BG1VOFS, r4);
@@ -87,13 +103,13 @@ void FieldUpdateBgTilemapScroll(void)
 
 void GetCameraOffsetWithPan(s16 *x, s16 *y)
 {
-    *x = sFieldCameraOffset.xPixelOffset + sHorizontalCameraPan;
-    *y = sFieldCameraOffset.yPixelOffset + sVerticalCameraPan + 8;
+    *x = sFieldCameraOffset.xPixelOffset + sHorizontalCameraPan - 8;
+    *y = sFieldCameraOffset.yPixelOffset + sVerticalCameraPan;
 }
 
 void DrawWholeMapView(void)
 {
-    DrawWholeMapViewInternal(gSaveBlock1Ptr->pos.x, gSaveBlock1Ptr->pos.y, gMapHeader.mapLayout);
+    DrawWholeMapViewInternal(gSaveBlock1Ptr->pos.x >> 4, gSaveBlock1Ptr->pos.y >> 4, gMapHeader.mapLayout);
     sFieldCameraOffset.copyBGToVRAM = TRUE;
 }
 
@@ -120,22 +136,26 @@ static void DrawWholeMapViewInternal(int x, int y, const struct MapLayout *mapLa
     }
 }
 
+// FIXME: map slices don't look quite right
 static void RedrawMapSlicesForCameraUpdate(struct FieldCameraOffset *cameraOffset, int x, int y)
 {
     const struct MapLayout *mapLayout = gMapHeader.mapLayout;
+    int viewX = sCameraPosition.x;
+    int viewY = sCameraPosition.y;
 
     if (x > 0)
-        RedrawMapSliceWest(cameraOffset, mapLayout);
+        RedrawMapSliceWest(cameraOffset, mapLayout, viewX, viewY);
     if (x < 0)
-        RedrawMapSliceEast(cameraOffset, mapLayout);
+        RedrawMapSliceEast(cameraOffset, mapLayout, viewX, viewY);
     if (y > 0)
-        RedrawMapSliceNorth(cameraOffset, mapLayout);
+        RedrawMapSliceNorth(cameraOffset, mapLayout, viewX, viewY);
     if (y < 0)
-        RedrawMapSliceSouth(cameraOffset, mapLayout);
+        RedrawMapSliceSouth(cameraOffset, mapLayout, viewX, viewY);
+
     cameraOffset->copyBGToVRAM = TRUE;
 }
 
-static void RedrawMapSliceNorth(struct FieldCameraOffset *cameraOffset, const struct MapLayout *mapLayout)
+static void RedrawMapSliceNorth(struct FieldCameraOffset *cameraOffset, const struct MapLayout *mapLayout, int viewX, int viewY)
 {
     u8 i;
     u8 temp;
@@ -150,11 +170,11 @@ static void RedrawMapSliceNorth(struct FieldCameraOffset *cameraOffset, const st
         temp = cameraOffset->xTileOffset + i;
         if (temp >= 32)
             temp -= 32;
-        DrawMetatileAt(mapLayout, r7 + temp, gSaveBlock1Ptr->pos.x + i / 2, gSaveBlock1Ptr->pos.y + 14);
+        DrawMetatileAt(mapLayout, r7 + temp, viewX + i / 2, viewY + 14);
     }
 }
 
-static void RedrawMapSliceSouth(struct FieldCameraOffset *cameraOffset, const struct MapLayout *mapLayout)
+static void RedrawMapSliceSouth(struct FieldCameraOffset *cameraOffset, const struct MapLayout *mapLayout, int viewX, int viewY)
 {
     u8 i;
     u8 temp;
@@ -165,11 +185,11 @@ static void RedrawMapSliceSouth(struct FieldCameraOffset *cameraOffset, const st
         temp = cameraOffset->xTileOffset + i;
         if (temp >= 32)
             temp -= 32;
-        DrawMetatileAt(mapLayout, r7 + temp, gSaveBlock1Ptr->pos.x + i / 2, gSaveBlock1Ptr->pos.y);
+        DrawMetatileAt(mapLayout, r7 + temp, viewX + i / 2, viewY);
     }
 }
 
-static void RedrawMapSliceEast(struct FieldCameraOffset *cameraOffset, const struct MapLayout *mapLayout)
+static void RedrawMapSliceEast(struct FieldCameraOffset *cameraOffset, const struct MapLayout *mapLayout, int viewX, int viewY)
 {
     u8 i;
     u8 temp;
@@ -180,11 +200,11 @@ static void RedrawMapSliceEast(struct FieldCameraOffset *cameraOffset, const str
         temp = cameraOffset->yTileOffset + i;
         if (temp >= 32)
             temp -= 32;
-        DrawMetatileAt(mapLayout, temp * 32 + r6, gSaveBlock1Ptr->pos.x, gSaveBlock1Ptr->pos.y + i / 2);
+        DrawMetatileAt(mapLayout, temp * 32 + r6, viewX, viewY + i / 2);
     }
 }
 
-static void RedrawMapSliceWest(struct FieldCameraOffset *cameraOffset, const struct MapLayout *mapLayout)
+static void RedrawMapSliceWest(struct FieldCameraOffset *cameraOffset, const struct MapLayout *mapLayout, int viewX, int viewY)
 {
     u8 i;
     u8 temp;
@@ -197,7 +217,7 @@ static void RedrawMapSliceWest(struct FieldCameraOffset *cameraOffset, const str
         temp = cameraOffset->yTileOffset + i;
         if (temp >= 32)
             temp -= 32;
-        DrawMetatileAt(mapLayout, temp * 32 + r5, gSaveBlock1Ptr->pos.x + 14, gSaveBlock1Ptr->pos.y + i / 2);
+        DrawMetatileAt(mapLayout, temp * 32 + r5, viewX + 14, viewY + i / 2);
     }
 }
 
@@ -307,9 +327,10 @@ static void DrawMetatile(s32 metatileLayerType, u16 *tiles, u16 offset)
     ScheduleBgCopyTilemapToVram(3);
 }
 
+
 static s32 MapPosToBgTilemapOffset(struct FieldCameraOffset *cameraOffset, s32 x, s32 y)
 {
-    x -= gSaveBlock1Ptr->pos.x;
+    x -= sCameraPosition.x;
     x *= 2;
     if (x >= 32 || x < 0)
         return -1;
@@ -317,7 +338,7 @@ static s32 MapPosToBgTilemapOffset(struct FieldCameraOffset *cameraOffset, s32 x
     if (x >= 32)
         x -= 32;
 
-    y = (y - gSaveBlock1Ptr->pos.y) * 2;
+    y = (y - sCameraPosition.y) * 2;
     if (y >= 32 || y < 0)
         return -1;
     y = y + cameraOffset->yTileOffset;
@@ -359,8 +380,6 @@ void CameraUpdate(void)
 {
     int deltaX;
     int deltaY;
-    int curMovementOffsetY;
-    int curMovementOffsetX;
     int movementSpeedX;
     int movementSpeedY;
 
@@ -370,50 +389,43 @@ void CameraUpdate(void)
     movementSpeedY = gFieldCamera.movementSpeedY;
     deltaX = 0;
     deltaY = 0;
-    curMovementOffsetX = gFieldCamera.x;
-    curMovementOffsetY = gFieldCamera.y;
-
-
-    if (curMovementOffsetX == 0 && movementSpeedX != 0)
-    {
-        if (movementSpeedX > 0)
-            deltaX = 1;
-        else
-            deltaX = -1;
-    }
-    if (curMovementOffsetY == 0 && movementSpeedY != 0)
-    {
-        if (movementSpeedY > 0)
-            deltaY = 1;
-        else
-            deltaY = -1;
-    }
-    if (curMovementOffsetX != 0 && curMovementOffsetX == -movementSpeedX)
-    {
-        if (movementSpeedX > 0)
-            deltaX = 1;
-        else
-            deltaX = -1;
-    }
-    if (curMovementOffsetY != 0 && curMovementOffsetY == -movementSpeedY)
-    {
-        if (movementSpeedY > 0)
-            deltaX = 1;
-        else
-            deltaX = -1;
-    }
 
     gFieldCamera.x += movementSpeedX;
-    gFieldCamera.x %= 16;
+    if (gFieldCamera.x > 15)
+    {
+        gFieldCamera.x -= 15;
+        deltaX = 1;
+    }
+    else if (gFieldCamera.x < 0)
+    {
+        gFieldCamera.x += 15;
+        deltaX = -1;
+    }
+
     gFieldCamera.y += movementSpeedY;
-    gFieldCamera.y %= 16;
+    if (gFieldCamera.y > 15)
+    {
+        gFieldCamera.y -= 15;
+        deltaY = 1;
+    }
+    else if (gFieldCamera.y < 0)
+    {
+        gFieldCamera.y += 15;
+        deltaY = -1;
+    }
+
+    if (movementSpeedX != 0 || movementSpeedY != 0)
+    {
+        CameraMove(movementSpeedX, movementSpeedY);
+        UpdateObjectEventsForCameraUpdate(movementSpeedX, movementSpeedY);
+        SetBerryTreesSeen();
+    }
 
     if (deltaX != 0 || deltaY != 0)
     {
-        CameraMove(deltaX, deltaY);
-        UpdateObjectEventsForCameraUpdate(deltaX, deltaY);
+        sCameraPosition.x += deltaX;
+        sCameraPosition.y += deltaY;
         RotatingGatePuzzleCameraUpdate(deltaX, deltaY);
-        SetBerryTreesSeen();
         AddCameraTileOffset(&sFieldCameraOffset, deltaX * 2, deltaY * 2);
         RedrawMapSlicesForCameraUpdate(&sFieldCameraOffset, deltaX * 2, deltaY * 2);
     }
@@ -421,15 +433,6 @@ void CameraUpdate(void)
     AddCameraPixelOffset(&sFieldCameraOffset, movementSpeedX, movementSpeedY);
     gTotalCameraPixelOffsetX -= movementSpeedX;
     gTotalCameraPixelOffsetY -= movementSpeedY;
-}
-
-void MoveCameraAndRedrawMap(int deltaX, int deltaY) //unused
-{
-    CameraMove(deltaX, deltaY);
-    UpdateObjectEventsForCameraUpdate(deltaX, deltaY);
-    DrawWholeMapView();
-    gTotalCameraPixelOffsetX -= deltaX * 16;
-    gTotalCameraPixelOffsetY -= deltaY * 16;
 }
 
 void SetCameraPanningCallback(void (*callback)(void))

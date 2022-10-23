@@ -785,7 +785,7 @@ bool8 ScrCmd_warphole(struct ScriptContext *ctx)
     u16 x;
     u16 y;
 
-    PlayerGetDestCoords(&x, &y);
+    PlayerGetDestCoordsInTiles(&x, &y);
     if (mapGroup == MAP_GROUP(UNDEFINED) && mapNum == MAP_NUM(UNDEFINED))
         SetWarpDestinationToFixedHoleWarp(x - MAP_OFFSET, y - MAP_OFFSET);
     else
@@ -889,8 +889,8 @@ bool8 ScrCmd_getplayerxy(struct ScriptContext *ctx)
     u16 *pX = GetVarPointer(ScriptReadHalfword(ctx));
     u16 *pY = GetVarPointer(ScriptReadHalfword(ctx));
 
-    *pX = gSaveBlock1Ptr->pos.x;
-    *pY = gSaveBlock1Ptr->pos.y;
+    *pX = gSaveBlock1Ptr->pos.x >> 4;
+    *pY = gSaveBlock1Ptr->pos.y >> 4;
     return FALSE;
 }
 

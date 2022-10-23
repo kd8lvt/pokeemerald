@@ -2,12 +2,14 @@
 #define GUARD_FIELD_PLAYER_AVATAR_H
 
 void PlayerStep(u8 direction, u16 newKeys, u16 heldKeys);
+bool8 PlayerCheckNotMoving(u8 direction);
 void ClearPlayerAvatarInfo(void);
 void SetPlayerAvatarExtraStateTransition(u8, u8);
 u8 GetPlayerAvatarGenderByGraphicsId(u8);
 bool8 TestPlayerAvatarFlags(u8);
 u8 GetPlayerAvatarSpriteId(void);
 void PlayerGetDestCoords(s16 *, s16 *);
+void PlayerGetDestCoordsInTiles(s16 *, s16 *);
 u8 GetPlayerFacingDirection(void);
 u8 GetPlayerMovementDirection(void);
 u8 PlayerGetCopyableMovement(void);
@@ -38,6 +40,7 @@ void PlayerFreeze(void);
 void StopPlayerAvatar(void);
 void SetSpinStartFacingDir(u8);
 void GetXYCoordsOneStepInFrontOfPlayer(s16 *xPtr, s16 *yPtr);
+void GetTileCoordsInFrontOfPlayer(s16 *xPtr, s16 *yPtr);
 u8 GetRivalAvatarGraphicsIdByStateIdAndGender(u8 state, u8 gender);
 void SetPlayerAvatarFieldMove(void);
 u8 GetPlayerAvatarGraphicsIdByCurrentState(void);
