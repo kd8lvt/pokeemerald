@@ -3893,7 +3893,7 @@ static bool8 SetUpFieldMove_Waterfall(void)
 {
     s16 x, y;
 
-    GetXYCoordsOneStepInFrontOfPlayer(&x, &y);
+    GetOneStepInFrontOfPlayer(&x, &y);
     if (MetatileBehavior_IsWaterfall(ObjectEventGetMetatileBehaviorAt(x, y)) == TRUE && IsPlayerSurfingNorth() == TRUE)
     {
         gFieldCallback2 = FieldCallback_PrepareFadeInFromMenu;

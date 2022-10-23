@@ -1094,10 +1094,10 @@ static void SynchroniseSurfAnim(struct ObjectEvent *playerObj, struct Sprite *sp
         [DIR_NORTH] = 1,
         [DIR_WEST] = 2,
         [DIR_EAST] = 3,
-        [DIR_SOUTHWEST] = 0,
-        [DIR_SOUTHEAST] = 0,
-        [DIR_NORTHWEST] = 1,
-        [DIR_NORTHEAST] = 1,
+        [DIR_SOUTHWEST] = 4,
+        [DIR_SOUTHEAST] = 5,
+        [DIR_NORTHWEST] = 6,
+        [DIR_NORTHEAST] = 7,
     };
 
     if (!GetSurfBlob_DontSyncAnim(sprite))

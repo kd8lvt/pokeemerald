@@ -267,7 +267,7 @@ static u8 GetSecretBaseTypeInFrontOfPlayer_(void)
     s16 x, y;
     s16 behavior;
 
-    GetXYCoordsOneStepInFrontOfPlayer(&x, &y);
+    GetOneStepInFrontOfPlayer(&x, &y);
     behavior = ObjectEventGetMetatileBehaviorAt(x, y) & 0xFFF;
     if (behavior == MB_SECRET_BASE_SPOT_RED_CAVE || behavior == MB_SECRET_BASE_SPOT_RED_CAVE_OPEN)
         return SECRET_BASE_RED_CAVE;
@@ -1884,7 +1884,7 @@ void CheckInteractedWithFriendsPosterDecor(void)
 {
     s16 x, y;
 
-    GetXYCoordsOneStepInFrontOfPlayer(&x, &y);
+    GetOneStepInFrontOfPlayer(&x, &y);
     switch (ObjectEventGetMetatileIdAt(x, y))
     {
         case METATILE_SecretBase_PikaPoster_Left:
@@ -1912,7 +1912,7 @@ void CheckInteractedWithFriendsFurnitureBottom(void)
 {
     s16 x, y;
 
-    GetXYCoordsOneStepInFrontOfPlayer(&x, &y);
+    GetOneStepInFrontOfPlayer(&x, &y);
     switch (ObjectEventGetMetatileIdAt(x, y))
     {
         case METATILE_SecretBase_GlassOrnament_Base1:
@@ -1990,7 +1990,7 @@ void CheckInteractedWithFriendsFurnitureMiddle(void)
 {
     s16 x, y;
 
-    GetXYCoordsOneStepInFrontOfPlayer(&x, &y);
+    GetOneStepInFrontOfPlayer(&x, &y);
     switch (ObjectEventGetMetatileIdAt(x, y))
     {
         case METATILE_SecretBase_HeavyDesk_TopMid:
@@ -2014,7 +2014,7 @@ void CheckInteractedWithFriendsFurnitureTop(void)
 {
     s16 x, y;
 
-    GetXYCoordsOneStepInFrontOfPlayer(&x, &y);
+    GetOneStepInFrontOfPlayer(&x, &y);
     switch (ObjectEventGetMetatileIdAt(x, y))
     {
         case METATILE_SecretBase_HeavyDesk_TopLeft:
@@ -2060,7 +2060,7 @@ void CheckInteractedWithFriendsSandOrnament(void)
 {
     s16 x, y;
 
-    GetXYCoordsOneStepInFrontOfPlayer(&x, &y);
+    GetOneStepInFrontOfPlayer(&x, &y);
     switch ((int)ObjectEventGetMetatileIdAt(x, y))
     {
         case METATILE_SecretBase_SandOrnament_Base1:

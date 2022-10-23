@@ -42,6 +42,7 @@ u8 gSelectedObjectEvent;
 
 static void GetPlayerPosition(struct MapPosition *);
 static void GetInFrontOfPlayerPosition(struct MapPosition *);
+static void GetOneStepFromPlayerPosition(struct MapPosition *, u8 direction);
 static u16 GetPlayerCurMetatileBehavior(int);
 static bool8 TryStartInteractionScript(struct MapPosition *, u16, u8);
 static const u8 *GetInteractionScript(struct MapPosition *, u8, u8);
@@ -83,7 +84,7 @@ void FieldClearPlayerInput(struct FieldInput *input)
     input->input_field_1_1 = FALSE;
     input->input_field_1_2 = FALSE;
     input->input_field_1_3 = FALSE;
-    input->dpadDirection = 0;
+    input->dpadDirection = DIR_NONE;
 }
 
 void FieldGetPlayerInput(struct FieldInput *input, u16 newKeys, u16 heldKeys)
@@ -91,6 +92,7 @@ void FieldGetPlayerInput(struct FieldInput *input, u16 newKeys, u16 heldKeys)
     u8 tileTransitionState = gPlayerAvatar.tileTransitionState;
     u8 runningState = gPlayerAvatar.runningState;
     bool8 forcedMove = MetatileBehavior_IsForcedMovementTile(GetPlayerCurMetatileBehavior(runningState));
+    u16 heldMoveKeys = (heldKeys & (DPAD_UP | DPAD_DOWN | DPAD_LEFT | DPAD_RIGHT));
 
     if ((tileTransitionState == T_TILE_CENTER && forcedMove == FALSE) || tileTransitionState == T_NOT_MOVING)
     {
@@ -106,7 +108,7 @@ void FieldGetPlayerInput(struct FieldInput *input, u16 newKeys, u16 heldKeys)
                 input->pressedBButton = TRUE;
         }
 
-        if (heldKeys & (DPAD_UP | DPAD_DOWN | DPAD_LEFT | DPAD_RIGHT))
+        if (heldMoveKeys)
         {
             input->heldDirection = TRUE;
             input->heldDirection2 = TRUE;
@@ -121,7 +123,15 @@ void FieldGetPlayerInput(struct FieldInput *input, u16 newKeys, u16 heldKeys)
             input->checkStandardWildEncounter = TRUE;
     }
 
-    if (heldKeys & DPAD_UP)
+    if (heldMoveKeys == (DPAD_UP | DPAD_LEFT))
+        input->dpadDirection = DIR_NORTHWEST;
+    else if (heldMoveKeys == (DPAD_UP | DPAD_RIGHT))
+        input->dpadDirection = DIR_NORTHEAST;
+    else if (heldMoveKeys == (DPAD_DOWN | DPAD_LEFT))
+        input->dpadDirection = DIR_SOUTHWEST;
+    else if (heldMoveKeys == (DPAD_DOWN | DPAD_RIGHT))
+        input->dpadDirection = DIR_SOUTHEAST;
+    else if (heldKeys & DPAD_UP)
         input->dpadDirection = DIR_NORTH;
     else if (heldKeys & DPAD_DOWN)
         input->dpadDirection = DIR_SOUTH;
@@ -180,6 +190,18 @@ int ProcessPlayerFieldInput(struct FieldInput *input)
         {
             if (TryDoorWarp(&position, metatileBehavior, playerDirection) == TRUE)
                 return TRUE;
+            else
+            {
+                u8 i;
+                for (i = 0; i < 2; i++)
+                {
+                    u8 subDirection = gSubDirections[playerDirection][i];
+                    GetOneStepFromPlayerPosition(&position, subDirection);
+                    metatileBehavior = ObjectEventGetMetatileBehaviorAt(position.x, position.y);
+                    if (TryDoorWarp(&position, metatileBehavior, subDirection))
+                        return TRUE;
+                }
+            }
         }
         if (TryStartWarpEventScript(&position, metatileBehavior) == TRUE)
             return TRUE;
@@ -214,7 +236,19 @@ static void GetInFrontOfPlayerPosition(struct MapPosition *position)
 {
     s16 x, y;
 
-    GetXYCoordsOneStepInFrontOfPlayer(&position->x, &position->y);
+    GetOneStepInFrontOfPlayer(&position->x, &position->y);
+    PlayerGetDestCoords(&x, &y);
+    if (ObjectEventGetElevationAt(x, y) != 0)
+        position->elevation = PlayerGetElevation();
+    else
+        position->elevation = 0;
+}
+
+static void GetOneStepFromPlayerPosition(struct MapPosition *position, u8 direction)
+{
+    s16 x, y;
+
+    GetOneStepFromPlayer(&position->x, &position->y, direction);
     PlayerGetDestCoords(&x, &y);
     if (ObjectEventGetElevationAt(x, y) != 0)
         position->elevation = PlayerGetElevation();
@@ -740,7 +774,7 @@ bool8 TryArrowWarpIfBlocked(void)
     return TryArrowWarp(&position, ObjectEventGetMetatileBehaviorAt(position.x, position.y), GetPlayerFacingDirection());
 }
 
-bool8 TryArrowWarp(struct MapPosition *position, u16 metatileBehavior, u8 direction)
+static bool8 TryArrowWarp(struct MapPosition *position, u16 metatileBehavior, u8 direction)
 {
     s8 warpEventId = GetWarpEventAtMapPosition(&gMapHeader, position);
 
@@ -844,6 +878,14 @@ static bool8 IsArrowWarpMetatileBehavior(u16 metatileBehavior, u8 direction)
         return MetatileBehavior_IsWestArrowWarp(metatileBehavior);
     case DIR_EAST:
         return MetatileBehavior_IsEastArrowWarp(metatileBehavior);
+    case DIR_SOUTHWEST:
+        return MetatileBehavior_IsSouthwestArrowWarp(metatileBehavior);
+    case DIR_SOUTHEAST:
+        return MetatileBehavior_IsSoutheastArrowWarp(metatileBehavior);
+    case DIR_NORTHWEST:
+        return MetatileBehavior_IsNorthwestArrowWarp(metatileBehavior);
+    case DIR_NORTHEAST:
+        return MetatileBehavior_IsNortheastArrowWarp(metatileBehavior);
     }
     return FALSE;
 }

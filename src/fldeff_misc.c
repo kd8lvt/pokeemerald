@@ -553,7 +553,7 @@ bool8 SetUpFieldMove_SecretPower(void)
     if (gSpecialVar_Result == 1 || GetPlayerFacingDirection() != DIR_NORTH)
         return FALSE;
 
-    GetXYCoordsOneStepInFrontOfPlayer(&gPlayerFacingPosition.x, &gPlayerFacingPosition.y);
+    GetOneStepInFrontOfPlayer(&gPlayerFacingPosition.x, &gPlayerFacingPosition.y);
     mb = ObjectEventGetMetatileBehaviorAt(gPlayerFacingPosition.x, gPlayerFacingPosition.y);
 
     if (MetatileBehavior_IsSecretBaseCave(mb) == TRUE)
@@ -1121,7 +1121,7 @@ void InteractWithShieldOrTVDecoration(void)
     s16 x, y;
     s32 metatileId;
 
-    GetXYCoordsOneStepInFrontOfPlayer(&x, &y);
+    GetOneStepInFrontOfPlayer(&x, &y);
 
     metatileId = ObjectEventGetMetatileIdAt(x, y);
 
