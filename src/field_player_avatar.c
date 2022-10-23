@@ -1117,7 +1117,7 @@ void PlayerFaceDirection(u8 direction)
 
 void PlayerTurnInPlace(u8 direction)
 {
-    PlayerSetAnimId(GetWalkInPlaceFastMovementAction(direction), COPY_MOVE_FACE);
+    PlayerSetAnimId(GetWalkInPlaceFasterMovementAction(direction), COPY_MOVE_FACE);
 }
 
 void PlayerJumpLedge(u8 direction)
