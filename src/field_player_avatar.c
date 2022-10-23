@@ -973,10 +973,10 @@ static void PlayerAvatarTransition_ReturnToField(struct ObjectEvent *objEvent)
 void UpdatePlayerAvatarTransitionState(void)
 {
     struct ObjectEvent *playerObjEvent = &gObjectEvents[gPlayerAvatar.objectEventId];
-    if (playerObjEvent->tookStepX || playerObjEvent->tookStepY)
+    if (playerObjEvent->tookStep)
     {
         gPlayerAvatar.tookStep = TRUE;
-        playerObjEvent->tookStepX = playerObjEvent->tookStepY = FALSE;
+        playerObjEvent->tookStep = FALSE;
     }
 
     gPlayerAvatar.moveBlocked = FALSE;

@@ -195,8 +195,8 @@ struct ObjectEvent
              u32 moveBlocked:1;
              u32 useTargetCoords:1;
              // FIXME: only the player needs to keep track of this
-             u32 tookStepX:1;
-             u32 tookStepY:1;
+             u32 tookStep:1;
+             u32 moveToTileCenter:1;
     /*0x04*/ u8 spriteId;
     /*0x05*/ u8 graphicsId;
     /*0x06*/ u8 movementType;

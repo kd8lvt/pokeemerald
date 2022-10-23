@@ -2379,26 +2379,26 @@ void SetObjectEventDirection(struct ObjectEvent *objectEvent, u8 direction)
 static void SetObjectEventTargetCoords(struct ObjectEvent *objectEvent, u8 direction)
 {
     if (objectEvent->useTargetCoords)
-    {
-        // I'm out of space to add another field in ObjectEvent, so this is a hack.
-        // Used in scripted movement to center the object to the grid
-        if (objectEvent->targetCoords.x == -2048)
-        {
-            objectEvent->targetCoords.x = COORDS_TO_GRID(objectEvent->currentCoords.x) + sDirectionToVectors[direction].x;
-            objectEvent->targetCoords.y = COORDS_TO_GRID(objectEvent->currentCoords.y) + sDirectionToVectors[direction].y;
-            objectEvent->targetCoords.x = GRID_TO_TILE_CENTER(objectEvent->targetCoords.x);
-            objectEvent->targetCoords.y = GRID_TO_TILE_CENTER(objectEvent->targetCoords.y);
-        }
         return;
-    }
 
-    objectEvent->targetCoords.x = objectEvent->currentCoords.x + GRID_TO_COORDS(sDirectionToVectors[direction].x);
-    objectEvent->targetCoords.y = objectEvent->currentCoords.y + GRID_TO_COORDS(sDirectionToVectors[direction].y);
+    // Used in scripted movement to center the object to the grid
+    if (objectEvent->moveToTileCenter)
+    {
+        objectEvent->targetCoords.x = GRID_TO_TILE_CENTER(COORDS_TO_GRID(objectEvent->currentCoords.x) + sDirectionToVectors[direction].x);
+        objectEvent->targetCoords.y = GRID_TO_TILE_CENTER(COORDS_TO_GRID(objectEvent->currentCoords.y) + sDirectionToVectors[direction].y);
+        objectEvent->useTargetCoords = TRUE;
+    }
+    else
+    {
+        objectEvent->targetCoords.x = objectEvent->currentCoords.x + GRID_TO_COORDS(sDirectionToVectors[direction].x);
+        objectEvent->targetCoords.y = objectEvent->currentCoords.y + GRID_TO_COORDS(sDirectionToVectors[direction].y);
+    }
 }
 
 static void ClearObjectEventTargetCoords(struct ObjectEvent *objectEvent)
 {
     objectEvent->useTargetCoords = FALSE;
+    objectEvent->moveToTileCenter = FALSE;
     objectEvent->targetCoords.x = 0;
     objectEvent->targetCoords.y = 0;
 }
@@ -4934,8 +4934,7 @@ bool8 ObjectEventSetHeldMovementScripted(struct ObjectEvent *objectEvent, u8 mov
 
     UnfreezeObjectEvent(objectEvent);
     objectEvent->movementActionId = movementActionId;
-    objectEvent->useTargetCoords = TRUE;
-    objectEvent->targetCoords.x = -2048;
+    objectEvent->moveToTileCenter = TRUE;
     objectEvent->heldMovementActive = TRUE;
     objectEvent->heldMovementFinished = FALSE;
     gSprites[objectEvent->spriteId].sActionFuncId = 0;
@@ -8265,21 +8264,21 @@ static void MoveObjectEvent(struct ObjectEvent *objectEvent, struct Sprite *spri
 
     if (pixelsMovedX < 0) {
         objectEvent->pixelsMovedX += 15;
-        objectEvent->tookStepX = TRUE;
+        objectEvent->tookStep = TRUE;
     }
     else if (pixelsMovedX > 15) {
         objectEvent->pixelsMovedX -= 15;
-        objectEvent->tookStepX = TRUE;
+        objectEvent->tookStep = TRUE;
     }
     else
         objectEvent->pixelsMovedX = (u8)pixelsMovedX;
     if (pixelsMovedY < 0) {
         objectEvent->pixelsMovedY += 15;
-        objectEvent->tookStepY = TRUE;
+        objectEvent->tookStep = TRUE;
     }
     else if (pixelsMovedY > 15) {
         objectEvent->pixelsMovedY -= 15;
-        objectEvent->tookStepY = TRUE;
+        objectEvent->tookStep = TRUE;
     }
     else
         objectEvent->pixelsMovedY = (u8)pixelsMovedY;
