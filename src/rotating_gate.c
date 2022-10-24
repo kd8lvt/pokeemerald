@@ -961,8 +961,10 @@ bool8 CheckForRotatingGatePuzzleCollision(u8 direction, s16 x, s16 y)
 
     if (!GetCurrentMapRotatingGatePuzzleType())
         return FALSE;
-    x >>= 4;
-    y >>= 4;
+
+    x = COORDS_TO_GRID(x);
+    y = COORDS_TO_GRID(y);
+
     for (i = 0; i < sRotatingGate_PuzzleCount; i++)
     {
         s16 gateX = sRotatingGate_PuzzleConfig[i].x + MAP_OFFSET;
@@ -1001,8 +1003,10 @@ bool8 CheckForRotatingGatePuzzleCollisionWithoutAnimation(u8 direction, s16 x, s
 
     if (!GetCurrentMapRotatingGatePuzzleType())
         return FALSE;
-    x >>= 4;
-    y >>= 4;
+
+    x = COORDS_TO_GRID(x);
+    y = COORDS_TO_GRID(y);
+
     for (i = 0; i < sRotatingGate_PuzzleCount; i++)
     {
         s16 gateX = sRotatingGate_PuzzleConfig[i].x + MAP_OFFSET;

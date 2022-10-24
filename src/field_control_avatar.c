@@ -63,7 +63,7 @@ static bool8 TryDoorWarp(struct MapPosition *, u16, u8);
 static s8 GetWarpEventAtPosition(struct MapHeader *, u16, u16, u8);
 static u8 *GetCoordEventScriptAtPosition(struct MapHeader *, u16, u16, u8);
 static struct BgEvent *GetBackgroundEventAtPosition(struct MapHeader *, u16, u16, u8);
-static bool8 TryStartCoordEventScript(u8);
+static bool8 TryStartCoordEventScript(struct MapPosition *, u8);
 static bool8 TryStartWarpEventScript(struct MapPosition *, u16);
 static bool8 TryStartMiscWalkingScripts(u16);
 static bool8 TryStartStepCountScript(u16);
@@ -169,42 +169,38 @@ int ProcessPlayerFieldInput(struct FieldInput *input)
         if (TryStartStepBasedScript(&position, metatileBehavior, playerDirection) == TRUE)
             return TRUE;
     }
-    if (input->checkStandardWildEncounter && CheckStandardWildEncounter(metatileBehavior) == TRUE)
-        return TRUE;
     if (input->heldDirection && input->dpadDirection == playerDirection)
     {
+        if (TryStartCoordEventScript(&position, playerDirection) == TRUE)
+            return TRUE;
+        if (TryStartWarpEventScript(&position, metatileBehavior) == TRUE)
+            return TRUE;
         if (TryArrowWarp(&position, metatileBehavior, playerDirection) == TRUE)
             return TRUE;
     }
+    if (input->checkStandardWildEncounter && CheckStandardWildEncounter(metatileBehavior) == TRUE)
+        return TRUE;
 
     GetInFrontOfPlayerPosition(&position);
     metatileBehavior = ObjectEventGetMetatileBehaviorAt(position.x, position.y);
     if (input->pressedAButton && TryStartInteractionScript(&position, metatileBehavior, playerDirection) == TRUE)
         return TRUE;
 
-    if (input->heldDirection2)
+    if (input->heldDirection2 && input->dpadDirection == playerDirection)
     {
-        if (TryStartCoordEventScript(playerDirection) == TRUE)
+        u8 i;
+
+        if (TryDoorWarp(&position, metatileBehavior, playerDirection))
             return TRUE;
-        if (input->dpadDirection == playerDirection)
+
+        for (i = 0; i < 2; i++)
         {
-            if (TryDoorWarp(&position, metatileBehavior, playerDirection) == TRUE)
+            u8 subDirection = gSubDirections[playerDirection][i];
+            GetOneStepFromPlayerPosition(&position, subDirection);
+            metatileBehavior = ObjectEventGetMetatileBehaviorAt(position.x, position.y);
+            if (TryDoorWarp(&position, metatileBehavior, subDirection))
                 return TRUE;
-            else
-            {
-                u8 i;
-                for (i = 0; i < 2; i++)
-                {
-                    u8 subDirection = gSubDirections[playerDirection][i];
-                    GetOneStepFromPlayerPosition(&position, subDirection);
-                    metatileBehavior = ObjectEventGetMetatileBehaviorAt(position.x, position.y);
-                    if (TryDoorWarp(&position, metatileBehavior, subDirection))
-                        return TRUE;
-                }
-            }
         }
-        if (TryStartWarpEventScript(&position, metatileBehavior) == TRUE)
-            return TRUE;
     }
     if (input->pressedAButton && TrySetupDiveDownScript() == TRUE)
         return TRUE;
@@ -538,47 +534,9 @@ static bool8 TryStartStepBasedScript(struct MapPosition *position, u16 metatileB
     return FALSE;
 }
 
-static bool8 CheckSteppedOnTileCenter(struct MapPosition *position, u8 playerDirection)
+static bool8 TryStartCoordEventScript(struct MapPosition *position, u8 playerDirection)
 {
-    s16 tileCenterX = GRID_TO_TILE_CENTER(position->x);
-    s16 tileCenterY = GRID_TO_TILE_CENTER(position->y);
-
-    s16 x = 0;
-    s16 y = 0;
-    MoveCoords(playerDirection, &x, &y);
-
-    if (x > 0 && position->x >= tileCenterX)
-    {
-        return TRUE;
-    }
-    else if (x < 0 && position->x <= tileCenterX)
-    {
-        return TRUE;
-    }
-    if (y > 0 && position->y >= tileCenterY)
-    {
-        return TRUE;
-    }
-    else if (y < 0 && position->y <= tileCenterY)
-    {
-        return TRUE;
-    }
-
-    return FALSE;
-}
-
-static bool8 TryStartCoordEventScript(u8 playerDirection)
-{
-    u8 *script;
-    struct MapPosition position;
-    GetPlayerPosition(&position);
-
-    if (!CheckSteppedOnTileCenter(&position, playerDirection))
-        return FALSE;
-
-    position.x >>= 4;
-    position.y >>= 4;
-    script = GetCoordEventScriptAtPosition(&gMapHeader, position.x - MAP_OFFSET, position.y - MAP_OFFSET, position.elevation);
+    u8 *script = GetCoordEventScriptAtPosition(&gMapHeader, COORDS_TO_GRID(position->x) - MAP_OFFSET, COORDS_TO_GRID(position->y) - MAP_OFFSET, position->elevation);
 
     if (script == NULL)
         return FALSE;
@@ -802,7 +760,7 @@ static bool8 TryArrowWarp(struct MapPosition *position, u16 metatileBehavior, u8
     return FALSE;
 }
 
-bool8 TryStartWarpEventScript(struct MapPosition *position, u16 metatileBehavior)
+static bool8 TryStartWarpEventScript(struct MapPosition *position, u16 metatileBehavior)
 {
     s8 warpEventId = GetWarpEventAtMapPosition(&gMapHeader, position);
     if (warpEventId != WARP_ID_NONE && IsWarpMetatileBehavior(metatileBehavior) == TRUE)
