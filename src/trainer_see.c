@@ -308,6 +308,19 @@ static u16 GetTrainerApproachDistance(struct ObjectEvent *trainerObj)
     return 0;
 }
 
+static bool8 DoesTrainerCollideWithPlayerAt(struct ObjectEvent *objectEvent, s16 x, s16 y)
+{
+    struct ObjectEvent *playerObj = &gObjectEvents[gPlayerAvatar.objectEventId];
+
+    if (CheckObjectEventHitboxXY(playerObj, x, y))
+    {
+        if (AreElevationsCompatible(objectEvent->currentElevation, playerObj->currentElevation))
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
 static u16 CheckPathBetweenTrainerAndPlayer(struct ObjectEvent *trainerObj, u16 approachDistance, u8 direction)
 {
     s16 x, y;
@@ -326,7 +339,7 @@ static u16 CheckPathBetweenTrainerAndPlayer(struct ObjectEvent *trainerObj, u16 
         u8 collision = GetCollisionFlagsAtCoords(trainerObj, x, y, direction);
         if (collision != 0 && (collision & ~(1 << (COLLISION_OUTSIDE_RANGE - 1))))
         {
-            if (collision == 1 << (COLLISION_OBJECT_EVENT - 1))
+            if (collision == 1 << (COLLISION_OBJECT_EVENT - 1) && DoesTrainerCollideWithPlayerAt(trainerObj, x, y))
                 return i;
         }
     }

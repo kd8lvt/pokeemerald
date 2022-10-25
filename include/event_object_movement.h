@@ -180,6 +180,7 @@ u8 GetJumpMovementAction(u32);
 u8 ElevationToPriority(u8 elevation);
 void ObjectEventUpdateElevation(struct ObjectEvent *objEvent);
 void SetObjectSubpriorityByElevation(u8 elevation, struct Sprite *, u8 subpriority);
+bool8 AreElevationsCompatible(u8 a, u8 b);
 void UnfreezeObjectEvent(struct ObjectEvent *);
 u8 FindLockedObjectEventIndex(struct ObjectEvent *);
 void SetAndStartSpriteAnim(struct Sprite *, u8 animNum, u8 animCmdIndex);

@@ -164,7 +164,6 @@ static void CreateLevitateMovementTask(struct ObjectEvent *);
 static void DestroyLevitateMovementTask(u8);
 static bool8 NpcTakeStep(struct ObjectEvent *, struct Sprite *);
 static bool8 IsElevationMismatchAt(u8, s16, s16);
-static bool8 AreElevationsCompatible(u8, u8);
 
 static const struct SpriteFrameImage sPicTable_PechaBerryTree[];
 
@@ -8006,7 +8005,7 @@ static void ObjectEventUpdateSubpriority(struct ObjectEvent *objEvent, struct Sp
     SetObjectSubpriorityByElevation(objEvent->previousElevation, sprite, 1);
 }
 
-static bool8 AreElevationsCompatible(u8 a, u8 b)
+bool8 AreElevationsCompatible(u8 a, u8 b)
 {
     if (a == 0 || b == 0)
         return TRUE;
