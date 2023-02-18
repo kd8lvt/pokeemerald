@@ -42,6 +42,7 @@ EWRAM_DATA struct PlayerAvatar gPlayerAvatar = {};
 static u8 ObjectEventCB2_NoMovement2();
 static bool8 TryInterruptObjectEventSpecialAnim(struct ObjectEvent *, u8);
 static void npc_clear_strange_bits(struct ObjectEvent *);
+static void ChangePlayerDirectionAndMove(struct ObjectEvent *, u8, u16, u16);
 static void MovePlayerAvatarUsingKeypadInput(u8, u16, u16);
 static void PlayerAllowForcedMovementIfMovingSameDirection();
 static bool8 TryDoMetatileBehaviorForcedMovement();
@@ -96,7 +97,6 @@ static void PlayerRun(u8);
 static void PlayerNotOnBikeCollide(u8);
 static void PlayerNotOnBikeCollideWithFarawayIslandMew(u8);
 
-static u8 PlayerCheckCollision(u8);
 static void PlayCollisionSoundIfNotFacingWarp(u8);
 
 static void HideShowWarpArrow(struct ObjectEvent *);
@@ -341,9 +341,58 @@ static bool8 PlayerCanRun(void)
         return FALSE;
     if (IsRunningDisallowed(gObjectEvents[gPlayerAvatar.objectEventId].currentMetatileBehavior))
         return FALSE;
-    if (gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_UNDERWATER)
+    if (gPlayerAvatar.flags & (PLAYER_AVATAR_FLAG_UNDERWATER | PLAYER_AVATAR_FLAG_MACH_BIKE | PLAYER_AVATAR_FLAG_ACRO_BIKE)) // Can't run while on a bike, silly.
         return FALSE;
     return TRUE;
+}
+
+static void PlayerCheckCurrentMovement(struct ObjectEvent *playerObjEvent, u8 direction, u16 newKeys, u16 heldKeys)
+{
+    u8 collision;
+    u8 playerDirection = playerObjEvent->movementDirection;
+    bool8 doMovement = FALSE;
+    bool8 isRunning;
+
+    if (direction != DIR_NONE && playerDirection != DIR_NONE && playerDirection != direction)
+    {
+        doMovement = TRUE;
+    }
+    else if (PlayerCheckNotMoving(direction))
+    {
+        return;
+    }
+
+    if (gPlayerAvatar.flags & (PLAYER_AVATAR_FLAG_MACH_BIKE | PLAYER_AVATAR_FLAG_ACRO_BIKE))
+        PlayerCheckCurrentBikeMovement(direction);
+
+    isRunning = gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_DASH;
+    if (PlayerCanRun() && (heldKeys & B_BUTTON))
+    {
+        if (!isRunning)
+        {
+            doMovement = TRUE;
+        }
+    }
+    else if (isRunning)
+    {
+        doMovement = TRUE;
+        gPlayerAvatar.flags &= ~PLAYER_AVATAR_FLAG_DASH;
+    }
+
+    if (doMovement)
+        ChangePlayerDirectionAndMove(playerObjEvent, direction, newKeys, heldKeys);
+
+    collision = PlayerCheckCollision(direction);
+    if (collision == 1)
+    {
+        gPlayerAvatar.moveBlocked = TRUE;
+        playerObjEvent->moveBlocked = TRUE;
+    }
+    else if (collision != 0)
+    {
+        gPlayerAvatar.moveBlocked = FALSE;
+        playerObjEvent->moveBlocked = FALSE;
+    }
 }
 
 void PlayerStep(u8 direction, u16 newKeys, u16 heldKeys)
@@ -368,61 +417,18 @@ void PlayerStep(u8 direction, u16 newKeys, u16 heldKeys)
 
         if (gPlayerAvatar.isMoving == TRUE)
         {
-            u8 collision;
-            u8 playerDirection = playerObjEvent->movementDirection;
-            bool8 doMovement = FALSE;
-            bool8 isRunning;
-
-            if (direction != DIR_NONE && playerDirection != DIR_NONE && playerDirection != direction)
-            {
-                doMovement = TRUE;
-            }
-            else if (PlayerCheckNotMoving(direction))
-            {
-                return;
-            }
-
-            isRunning = gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_DASH;
-            if (PlayerCanRun() && (heldKeys & B_BUTTON))
-            {
-                if (!isRunning)
-                {
-                    doMovement = TRUE;
-                }
-            }
-            else if (isRunning)
-            {
-                doMovement = TRUE;
-                gPlayerAvatar.flags &= ~PLAYER_AVATAR_FLAG_DASH;
-            }
-
-            if (doMovement)
-            {
-                ObjectEventClearHeldMovement(playerObjEvent);
-                MovePlayerAvatarUsingKeypadInput(direction, newKeys, heldKeys);
-            }
-
-            collision = PlayerCheckCollision(direction);
-            if (collision == 1)
-            {
-                gPlayerAvatar.moveBlocked = TRUE;
-                playerObjEvent->moveBlocked = TRUE;
-            }
-            else if (collision != 0)
-            {
-                gPlayerAvatar.moveBlocked = FALSE;
-                playerObjEvent->moveBlocked = FALSE;
-            }
+            PlayerCheckCurrentMovement(playerObjEvent, direction, newKeys, heldKeys);
         }
     }
 }
 
 bool8 PlayerCheckNotMoving(u8 direction)
 {
+    if (gPlayerAvatar.flags & (PLAYER_AVATAR_FLAG_MACH_BIKE | PLAYER_AVATAR_FLAG_ACRO_BIKE))
+        return PlayerCheckOnBikeNotMoving(direction);
     if (gPlayerAvatar.isMoving == TRUE && direction == DIR_NONE)
     {
-        struct ObjectEvent *playerObjEvent = &gObjectEvents[gPlayerAvatar.objectEventId];
-        ObjectEventClearHeldMovement(playerObjEvent);
+        ObjectEventClearHeldMovement(&gObjectEvents[gPlayerAvatar.objectEventId]);
         gPlayerAvatar.isMoving = FALSE;
         return TRUE;
     }
@@ -470,9 +476,14 @@ static void npc_clear_strange_bits(struct ObjectEvent *objEvent)
     gPlayerAvatar.flags &= ~PLAYER_AVATAR_FLAG_DASH;
 }
 
+static void ChangePlayerDirectionAndMove(struct ObjectEvent *playerObjEvent, u8 direction, u16 newKeys, u16 heldKeys)
+{
+    ObjectEventClearHeldMovement(playerObjEvent);
+    MovePlayerAvatarUsingKeypadInput(direction, newKeys, heldKeys);
+}
+
 static void MovePlayerAvatarUsingKeypadInput(u8 direction, u16 newKeys, u16 heldKeys)
 {
-    // TODO: bicycle movement
     if (gPlayerAvatar.flags & (PLAYER_AVATAR_FLAG_MACH_BIKE | PLAYER_AVATAR_FLAG_ACRO_BIKE))
         MovePlayerOnBike(direction, newKeys, heldKeys);
     else
@@ -651,7 +662,7 @@ static bool8 ForcedMovement_MuddySlope(void)
 
     if (playerObjEvent->movementDirection != DIR_NORTH || GetPlayerSpeed() < PLAYER_SPEED_FASTEST)
     {
-        Bike_UpdateBikeCounterSpeed(0);
+        Bike_SetBikeStill();
         playerObjEvent->facingDirectionLocked = TRUE;
         return DoForcedMovement(DIR_SOUTH, PlayerWalkFast);
     }
@@ -686,7 +697,7 @@ static void PlayerNotOnBikeTurningInPlace(u8 direction, u16 heldKeys)
     PlayerTurnInPlace(direction);
 }
 
-static u8 PlayerCheckCollision(u8 direction)
+u8 PlayerCheckCollision(u8 direction)
 {
     u8 collision = CheckForPlayerAvatarCollision(direction);
 
@@ -694,18 +705,24 @@ static u8 PlayerCheckCollision(u8 direction)
     {
         if (collision == COLLISION_LEDGE_JUMP)
         {
-            // FIXME: doesn't work sometimes
+            // FIXME: this doesn't work most of the time
             PlayerJumpLedge(direction);
             return 2;
         }
         else if (collision == COLLISION_OBJECT_EVENT && IsPlayerCollidingWithFarawayIslandMew(direction))
         {
-            PlayerNotOnBikeCollideWithFarawayIslandMew(direction);
+            if (gPlayerAvatar.flags & (PLAYER_AVATAR_FLAG_MACH_BIKE | PLAYER_AVATAR_FLAG_ACRO_BIKE))
+                PlayerOnBikeCollideWithFarawayIslandMew(direction);
+            else
+                PlayerNotOnBikeCollideWithFarawayIslandMew(direction);
             return 1;
         }
         else if (collision <= COLLISION_OBJECT_EVENT || collision >= COLLISION_WHEELIE_HOP)
         {
-            PlayerNotOnBikeCollide(direction);
+            if (gPlayerAvatar.flags & (PLAYER_AVATAR_FLAG_MACH_BIKE | PLAYER_AVATAR_FLAG_ACRO_BIKE))
+                PlayerOnBikeCollide(direction);
+            else
+                PlayerNotOnBikeCollide(direction);
             return 1;
         }
     }
@@ -744,26 +761,78 @@ static void PlayerNotOnBikeMoving(u8 direction, u16 heldKeys)
     }
 }
 
+u8 SensePlayerAvatarCollision(u8 direction, u8 (*checkCollisionFunction)(struct ObjectEvent *, s16, s16, u8, u8))
+{
+    s16 checkX[3], checkY[3];
+    u8 numChecks, i;
+
+    struct ObjectEvent *playerObjEvent = &gObjectEvents[gPlayerAvatar.objectEventId];
+    checkX[0] = playerObjEvent->currentCoords.x;
+    checkY[0] = playerObjEvent->currentCoords.y;
+
+    MoveObjectEventCoords(direction, &checkX[0], &checkY[0]);
+
+    switch (direction)
+    {
+    case DIR_SOUTH:
+    case DIR_NORTH:
+        checkX[1] = checkX[0] - 4;
+        checkY[1] = checkY[0];
+        checkX[2] = checkX[0] + 4;
+        checkY[2] = checkY[0];
+        numChecks = 3;
+        break;
+    case DIR_WEST:
+    case DIR_EAST:
+        checkX[1] = checkX[0];
+        checkY[1] = checkY[0] - 4;
+        checkX[2] = checkX[0];
+        checkY[2] = checkY[0] + 4;
+        numChecks = 3;
+        break;
+    case DIR_SOUTHWEST:
+    case DIR_SOUTHEAST:
+        checkX[1] = checkX[0];
+        checkY[1] = checkY[0] - 4;
+        numChecks = 2;
+        break;
+    case DIR_NORTHWEST:
+    case DIR_NORTHEAST:
+        checkX[1] = checkX[0];
+        checkY[1] = checkY[0] + 4;
+        numChecks = 2;
+        break;
+    default:
+        return COLLISION_NONE;
+    }
+
+    for (i = 0; i < numChecks; i++)
+    {
+        s16 x = checkX[i];
+        s16 y = checkY[i];
+        u8 collision;
+        u32 metatileBehavior;
+
+        metatileBehavior = ObjectEventGetMetatileBehaviorAt(x, y);
+        collision = checkCollisionFunction(playerObjEvent, x, y, direction, metatileBehavior);
+
+        if (collision != COLLISION_NONE)
+        {
+            return collision;
+        }
+    }
+
+    return COLLISION_NONE;
+}
+
 static u8 CheckForPlayerAvatarCollision(u8 direction)
 {
-    s16 x, y;
-    struct ObjectEvent *playerObjEvent = &gObjectEvents[gPlayerAvatar.objectEventId];
-
-    x = playerObjEvent->currentCoords.x;
-    y = playerObjEvent->currentCoords.y;
-    MoveObjectEventCoords(direction, &x, &y);
-    return CheckForObjectEventCollision(playerObjEvent, x, y, direction, ObjectEventGetMetatileBehaviorAt(x, y));
+    return SensePlayerAvatarCollision(direction, CheckForObjectEventCollision);
 }
 
 static u8 CheckForPlayerAvatarStaticCollision(u8 direction)
 {
-    s16 x, y;
-    struct ObjectEvent *playerObjEvent = &gObjectEvents[gPlayerAvatar.objectEventId];
-
-    x = playerObjEvent->currentCoords.x;
-    y = playerObjEvent->currentCoords.y;
-    MoveObjectEventCoords(direction, &x, &y);
-    return CheckForObjectEventStaticCollision(playerObjEvent, x, y, direction, ObjectEventGetMetatileBehaviorAt(x, y));
+    return SensePlayerAvatarCollision(direction, CheckForObjectEventStaticCollision);
 }
 
 u8 CheckForObjectEventCollision(struct ObjectEvent *objectEvent, s16 x, s16 y, u8 direction, u8 metatileBehavior)
@@ -1057,7 +1126,7 @@ void PlayerSetAnimId(u8 movementActionId, u8 copyableMovement)
 {
     if (!PlayerIsAnimActive())
     {
-        // FIXME: copyable movements likely don't work anymore
+        // TODO:
         PlayerSetCopyableMovement(copyableMovement);
         ObjectEventSetHeldMovement(&gObjectEvents[gPlayerAvatar.objectEventId], movementActionId);
     }
@@ -1172,6 +1241,7 @@ void PlayerMovingHoppingWheelie(u8 direction)
 // wheelie hopping ledge
 void PlayerLedgeHoppingWheelie(u8 direction)
 {
+    gPlayerAvatar.isMoving = FALSE;
     PlaySE(SE_BIKE_HOP);
     PlayerSetAnimId(GetAcroWheelieJumpDirectionMovementAction(direction), COPY_MOVE_JUMP2);
 }
@@ -1341,7 +1411,7 @@ void StopPlayerAvatar(void)
     if (TestPlayerAvatarFlags(PLAYER_AVATAR_FLAG_MACH_BIKE | PLAYER_AVATAR_FLAG_ACRO_BIKE))
     {
         Bike_HandleBumpySlopeJump();
-        Bike_UpdateBikeCounterSpeed(0);
+        Bike_SetBikeStill();
     }
 }
 

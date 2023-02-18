@@ -399,7 +399,6 @@ static bool8 TrainerSeeIdle(u8 taskId, struct Task *task, struct ObjectEvent *tr
 }
 
 // TRSEE_EXCLAMATION
-// FIXME: the player may keep moving for a while when a trainer sees them for some reason
 static bool8 TrainerExclamationMark(u8 taskId, struct Task *task, struct ObjectEvent *trainerObj)
 {
     u8 direction;

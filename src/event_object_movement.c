@@ -136,7 +136,7 @@ static void MakeSpriteTemplateFromObjectEventTemplate(struct ObjectEventTemplate
 static struct ObjectEventTemplate *GetObjectEventTemplateByLocalIdAndMap(u8, u8, u8);
 static void LoadObjectEventPalette(u16);
 static void RemoveObjectEventIfOutsideView(struct ObjectEvent *);
-static void SpawnObjectEventOnReturnToField(u8, s16, s16);
+static void SpawnObjectEventOnReturnToField(u8);
 static void SetPlayerAvatarObjectEventIdAndObjectId(u8, u8);
 static void ResetObjectEventFldEffData(struct ObjectEvent *);
 static u8 LoadSpritePaletteIfTagExists(const struct SpritePalette *);
@@ -1504,7 +1504,7 @@ void RemoveAllObjectEventsExceptPlayer(void)
     }
 }
 
-static u8 TrySetupObjectEventSprite(struct ObjectEventTemplate *objectEventTemplate, struct SpriteTemplate *spriteTemplate, u8 mapNum, u8 mapGroup, s16 cameraX, s16 cameraY)
+static u8 TrySetupObjectEventSprite(struct ObjectEventTemplate *objectEventTemplate, struct SpriteTemplate *spriteTemplate, u8 mapNum, u8 mapGroup)
 {
     u8 spriteId;
     u8 paletteSlot;
@@ -1546,7 +1546,7 @@ static u8 TrySetupObjectEventSprite(struct ObjectEventTemplate *objectEventTempl
     }
 
     sprite = &gSprites[spriteId];
-    GetMapCoordsFromSpritePos(objectEvent->currentCoords.x + cameraX, objectEvent->currentCoords.y + cameraY, &sprite->x, &sprite->y);
+    GetMapCoordsFromSpritePos(objectEvent->currentCoords.x, objectEvent->currentCoords.y, &sprite->x, &sprite->y);
     sprite->centerToCornerVecX = -(graphicsInfo->width >> 1);
     sprite->centerToCornerVecY = -(graphicsInfo->height >> 1);
     sprite->x += 8;
@@ -1564,7 +1564,7 @@ static u8 TrySetupObjectEventSprite(struct ObjectEventTemplate *objectEventTempl
     return objectEventId;
 }
 
-static u8 TrySpawnObjectEventTemplate(struct ObjectEventTemplate *objectEventTemplate, u8 mapNum, u8 mapGroup, s16 cameraX, s16 cameraY)
+static u8 TrySpawnObjectEventTemplate(struct ObjectEventTemplate *objectEventTemplate, u8 mapNum, u8 mapGroup)
 {
     u8 objectEventId;
     struct SpriteTemplate spriteTemplate;
@@ -1576,7 +1576,7 @@ static u8 TrySpawnObjectEventTemplate(struct ObjectEventTemplate *objectEventTem
     MakeSpriteTemplateFromObjectEventTemplate(objectEventTemplate, &spriteTemplate, &subspriteTables);
     spriteFrameImage.size = graphicsInfo->size;
     spriteTemplate.images = &spriteFrameImage;
-    objectEventId = TrySetupObjectEventSprite(objectEventTemplate, &spriteTemplate, mapNum, mapGroup, cameraX, cameraY);
+    objectEventId = TrySetupObjectEventSprite(objectEventTemplate, &spriteTemplate, mapNum, mapGroup);
     if (objectEventId == OBJECT_EVENTS_COUNT)
         return OBJECT_EVENTS_COUNT;
 
@@ -1589,7 +1589,7 @@ static u8 TrySpawnObjectEventTemplate(struct ObjectEventTemplate *objectEventTem
 
 u8 SpawnSpecialObjectEvent(struct ObjectEventTemplate *objectEventTemplate)
 {
-    return TrySpawnObjectEventTemplate(objectEventTemplate, gSaveBlock1Ptr->location.mapNum, gSaveBlock1Ptr->location.mapGroup, 0, 0);
+    return TrySpawnObjectEventTemplate(objectEventTemplate, gSaveBlock1Ptr->location.mapNum, gSaveBlock1Ptr->location.mapGroup);
 }
 
 u8 SpawnSpecialObjectEventParameterized(u8 graphicsId, u8 movementBehavior, u8 localId, s16 x, s16 y, u8 elevation)
@@ -1620,7 +1620,7 @@ u8 TrySpawnObjectEvent(u8 localId, u8 mapNum, u8 mapGroup)
     if (!objectEventTemplate)
         return OBJECT_EVENTS_COUNT;
 
-    return TrySpawnObjectEventTemplate(objectEventTemplate, mapNum, mapGroup, 0, 0);
+    return TrySpawnObjectEventTemplate(objectEventTemplate, mapNum, mapGroup);
 }
 
 static void CopyObjectGraphicsInfoToSpriteTemplate(u16 graphicsId, void (*callback)(struct Sprite *), struct SpriteTemplate *spriteTemplate, const struct SubspriteTable **subspriteTables)
@@ -1725,7 +1725,7 @@ u8 CreateVirtualObject(u8 graphicsId, u8 virtualObjId, s16 x, s16 y, u8 elevatio
     return spriteId;
 }
 
-void TrySpawnObjectEvents(s16 cameraX, s16 cameraY)
+void TrySpawnObjectEvents(void)
 {
     u8 i;
     u8 objectCount;
@@ -1752,7 +1752,7 @@ void TrySpawnObjectEvents(s16 cameraX, s16 cameraY)
 
             if (top <= npcY && bottom >= npcY && left <= npcX && right >= npcX
                 && !FlagGet(template->flagId))
-                TrySpawnObjectEventTemplate(template, gSaveBlock1Ptr->location.mapNum, gSaveBlock1Ptr->location.mapGroup, cameraX, cameraY);
+                TrySpawnObjectEventTemplate(template, gSaveBlock1Ptr->location.mapNum, gSaveBlock1Ptr->location.mapGroup);
         }
     }
 }
@@ -1795,7 +1795,7 @@ static void RemoveObjectEventIfOutsideView(struct ObjectEvent *objectEvent)
     RemoveObjectEvent(objectEvent);
 }
 
-void SpawnObjectEventsOnReturnToField(s16 x, s16 y)
+void SpawnObjectEventsOnReturnToField(void)
 {
     u8 i;
 
@@ -1803,12 +1803,12 @@ void SpawnObjectEventsOnReturnToField(s16 x, s16 y)
     for (i = 0; i < OBJECT_EVENTS_COUNT; i++)
     {
         if (gObjectEvents[i].active)
-            SpawnObjectEventOnReturnToField(i, x, y);
+            SpawnObjectEventOnReturnToField(i);
     }
     CreateReflectionEffectSprites();
 }
 
-static void SpawnObjectEventOnReturnToField(u8 objectEventId, s16 x, s16 y)
+static void SpawnObjectEventOnReturnToField(u8 objectEventId)
 {
     u8 i;
     u8 paletteSlot;
@@ -1853,7 +1853,7 @@ static void SpawnObjectEventOnReturnToField(u8 objectEventId, s16 x, s16 y)
     if (i != MAX_SPRITES)
     {
         sprite = &gSprites[i];
-        GetMapCoordsFromSpritePos(x + objectEvent->currentCoords.x, y + objectEvent->currentCoords.y, &sprite->x, &sprite->y);
+        GetMapCoordsFromSpritePos(objectEvent->currentCoords.x, objectEvent->currentCoords.y, &sprite->x, &sprite->y);
         sprite->centerToCornerVecX = -(graphicsInfo->width >> 1);
         sprite->centerToCornerVecY = -(graphicsInfo->height >> 1);
         sprite->x += 8;
@@ -2324,10 +2324,10 @@ static bool8 ObjectEventDoesElevationMatch(struct ObjectEvent *objectEvent, u8 e
     return TRUE;
 }
 
-void UpdateObjectEventsForCameraUpdate(s16 x, s16 y)
+void UpdateObjectEventsForCameraUpdate(void)
 {
     UpdateObjectEventCoordsForCameraUpdate();
-    TrySpawnObjectEvents(x, y);
+    TrySpawnObjectEvents();
     RemoveObjectEventsOutsideView();
 }
 
@@ -3252,7 +3252,6 @@ bool8 MovementType_BerryTreeGrowth_Normal(struct ObjectEvent *objectEvent, struc
     {
         if (!(sprite->sBerryTreeFlags & BERRY_FLAG_JUST_PICKED) && sprite->animNum == BERRY_STAGE_FLOWERING)
         {
-            // FIXME: see the one in field_effect_helpers.c
             gFieldEffectArguments[0] = objectEvent->currentCoords.x;
             gFieldEffectArguments[1] = objectEvent->currentCoords.y;
             gFieldEffectArguments[2] = sprite->subpriority - 1;
@@ -4773,12 +4772,26 @@ void SetStepAnim(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 anim
 
 u8 GetDirectionToFace(s16 x, s16 y, s16 targetX, s16 targetY)
 {
-    // FIXME: should handle diagonals
+    // TODO: is this correct?
     if (x > targetX + 16)
+    {
+        if (y > targetY + 16)
+            return DIR_NORTHWEST;
+        else if (y < targetY - 16)
+            return DIR_SOUTHWEST;
+
         return DIR_WEST;
+    }
 
     if (x < targetX - 16)
+    {
+        if (y > targetY + 16)
+            return DIR_NORTHEAST;
+        else if (y < targetY - 16)
+            return DIR_SOUTHEAST;
+
         return DIR_EAST;
+    }
 
     if (y > targetY + 16)
         return DIR_NORTH;
@@ -4988,8 +5001,8 @@ void GetMapCoordsFromSpritePos(s16 x, s16 y, s16 *destX, s16 *destY)
 
 void SetSpritePosToMapCoords(s16 mapX, s16 mapY, s16 *destX, s16 *destY)
 {
-    s16 dx = -gTotalCameraPixelOffsetX - gFieldCamera.x;
-    s16 dy = -gTotalCameraPixelOffsetY - gFieldCamera.y;
+    s16 dx = -gTotalCameraPixelOffsetX;
+    s16 dy = -gTotalCameraPixelOffsetY;
 
     *destX = (mapX - gSaveBlock1Ptr->pos.x) + dx;
     *destY = (mapY - gSaveBlock1Ptr->pos.y) + dy;
@@ -8486,22 +8499,27 @@ static void MoveObjectEvent(struct ObjectEvent *objectEvent, struct Sprite *spri
     pixelsMovedX += x;
     pixelsMovedY += y;
 
-    if (pixelsMovedX < 0) {
-        objectEvent->pixelsMovedX += 15;
+    if (pixelsMovedX < 0)
+    {
+        objectEvent->pixelsMovedX += 16;
         objectEvent->tookStep = TRUE;
     }
-    else if (pixelsMovedX > 15) {
-        objectEvent->pixelsMovedX -= 15;
+    else if (pixelsMovedX >= 16)
+    {
+        objectEvent->pixelsMovedX -= 16;
         objectEvent->tookStep = TRUE;
     }
     else
         objectEvent->pixelsMovedX = (u8)pixelsMovedX;
-    if (pixelsMovedY < 0) {
-        objectEvent->pixelsMovedY += 15;
+
+    if (pixelsMovedY < 0)
+    {
+        objectEvent->pixelsMovedY += 16;
         objectEvent->tookStep = TRUE;
     }
-    else if (pixelsMovedY > 15) {
-        objectEvent->pixelsMovedY -= 15;
+    else if (pixelsMovedY >= 16)
+    {
+        objectEvent->pixelsMovedY -= 16;
         objectEvent->tookStep = TRUE;
     }
     else

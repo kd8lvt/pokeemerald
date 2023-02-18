@@ -222,12 +222,6 @@ static void GetPlayerPosition(struct MapPosition *position)
     position->elevation = PlayerGetElevation();
 }
 
-static void GetPlayerPositionInTiles(struct MapPosition *position)
-{
-    PlayerGetDestCoordsInTiles(&position->x, &position->y);
-    position->elevation = PlayerGetElevation();
-}
-
 static void GetInFrontOfPlayerPosition(struct MapPosition *position)
 {
     s16 x, y;

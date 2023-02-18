@@ -32,6 +32,8 @@ void PlayerSetAnimId(u8 movementActionId, u8 copyableMovement);
 bool8 IsPlayerCollidingWithFarawayIslandMew(u8 direction);
 void PlayerOnBikeCollideWithFarawayIslandMew(u8 direction);
 u8 CheckForObjectEventCollision(struct ObjectEvent *objectEvent, s16 x, s16 y, u8 direction, u8 metatileBehavior);
+u8 SensePlayerAvatarCollision(u8 direction, u8 (*checkCollisionFunction)(struct ObjectEvent *, s16, s16, u8, u8));
+u8 PlayerCheckCollision(u8 direction);
 u8 PlayerGetElevation(void);
 void SetPlayerAvatarTransitionFlags(u16 transitionFlags);
 void CancelPlayerForcedMovement(void);

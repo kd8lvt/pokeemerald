@@ -13,6 +13,8 @@
 // this file's functions
 static void MovePlayerOnMachBike(u8, u16, u16);
 static u8 GetMachBikeTransition(u8 *);
+static u8 MachBike_GetMovementSpeed(void);
+static bool8 MachBike_Decelerate(void);
 static void MachBikeTransition_FaceDirection(u8);
 static void MachBikeTransition_TurnDirection(u8);
 static void MachBikeTransition_TrySpeedUp(u8);
@@ -49,7 +51,6 @@ static bool8 IsRunningDisallowedByMetatile(u8);
 static void Bike_TryAdvanceCyclingRoadCollisions();
 static u8 CanBikeFaceDirOnMetatile(u8, u8);
 static bool8 WillPlayerCollideWithCollision(u8, u8);
-static void Bike_SetBikeStill(void);
 
 // const rom data
 
@@ -123,12 +124,46 @@ static const struct BikeHistoryInputInfo sAcroBikeTricksList[] =
 };
 
 // code
+void PlayerCheckCurrentBikeMovement(u8 direction)
+{
+    if ((gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_MACH_BIKE) && direction != DIR_NONE)
+    {
+        if (gPlayerAvatar.bikeFrameCounter < 28)
+            gPlayerAvatar.bikeFrameCounter++;
+    }
+}
+
 void MovePlayerOnBike(u8 direction, u16 newKeys, u16 heldKeys)
 {
     if (gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_MACH_BIKE)
         MovePlayerOnMachBike(direction, newKeys, heldKeys);
     else
         MovePlayerOnAcroBike(direction, newKeys, heldKeys);
+}
+
+bool8 PlayerCheckOnBikeNotMoving(u8 direction)
+{
+    if (gPlayerAvatar.isMoving == TRUE && direction == DIR_NONE)
+    {
+        if (gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_MACH_BIKE)
+        {
+            if (MachBike_Decelerate())
+                return FALSE;
+        }
+        else
+        {
+            if (gPlayerAvatar.acroBikeState == ACRO_STATE_BUNNY_HOP
+            || gPlayerAvatar.acroBikeState == ACRO_STATE_SIDE_JUMP
+            || gPlayerAvatar.acroBikeState == ACRO_STATE_TURN_JUMP)
+            {
+                return FALSE;
+            }
+        }
+        ObjectEventClearHeldMovement(&gObjectEvents[gPlayerAvatar.objectEventId]);
+        gPlayerAvatar.isMoving = FALSE;
+        return TRUE;
+    }
+    return FALSE;
 }
 
 static void MovePlayerOnMachBike(u8 direction, u16 newKeys, u16 heldKeys)
@@ -152,6 +187,7 @@ static u8 GetMachBikeTransition(u8 *dirTraveling)
             return MACH_TRANS_FACE_DIRECTION;
         }
         gPlayerAvatar.runningState = MOVING;
+        gPlayerAvatar.isMoving = TRUE;
         return MACH_TRANS_START_MOVING;
     }
 
@@ -162,6 +198,7 @@ static u8 GetMachBikeTransition(u8 *dirTraveling)
         {
             *dirTraveling = direction; // implement the new direction
             gPlayerAvatar.runningState = MOVING;
+            gPlayerAvatar.isMoving = TRUE;
             return MACH_TRANS_START_MOVING;
         }
         // if you didnt start moving but your dir was different, do a turn direction instead.
@@ -171,6 +208,7 @@ static u8 GetMachBikeTransition(u8 *dirTraveling)
     else // the player is either going in the current direction and hasnt changed or their state is currently moving.
     {
         gPlayerAvatar.runningState = MOVING;
+        gPlayerAvatar.isMoving = TRUE;
         return MACH_TRANS_KEEP_MOVING;
     }
 }
@@ -197,13 +235,23 @@ static void MachBikeTransition_TurnDirection(u8 direction)
     }
 }
 
+static u8 MachBike_GetMovementSpeed(void)
+{
+    u8 frameCounter = gPlayerAvatar.bikeFrameCounter;
+    if (frameCounter < 16)
+        return 0;
+    else if (frameCounter >= 16 && frameCounter < 24)
+        return 1;
+    else if (frameCounter >= 24)
+        return 2;
+}
+
 static void MachBikeTransition_TrySpeedUp_Move(u8 direction)
 {
     // we did not hit anything that can slow us down, so perform the advancement callback depending on the bikeFrameCounter and try to increase the mach bike's speed.
-    sMachBikeSpeedCallbacks[gPlayerAvatar.bikeFrameCounter](direction);
-    gPlayerAvatar.bikeSpeed = gPlayerAvatar.bikeFrameCounter + (gPlayerAvatar.bikeFrameCounter >> 1); // same as dividing by 2, but compiler is insistent on >> 1
-    if (gPlayerAvatar.bikeFrameCounter < 2) // do not go faster than the last element in the mach bike array
-        gPlayerAvatar.bikeFrameCounter++;
+    u8 frameCounter = MachBike_GetMovementSpeed();
+    sMachBikeSpeedCallbacks[frameCounter](direction);
+    gPlayerAvatar.bikeSpeed = frameCounter + (frameCounter >> 1); // same as dividing by 2, but compiler is insistent on >> 1
 }
 
 static void MachBikeTransition_TrySpeedUp(u8 direction)
@@ -236,34 +284,32 @@ static void MachBikeTransition_TrySpeedUp(u8 direction)
                 {
                     Bike_SetBikeStill();
                     PlayerOnBikeCollideWithFarawayIslandMew(direction);
+                    gPlayerAvatar.moveBlocked = TRUE;
                 }
                 else if (collision <= COLLISION_OBJECT_EVENT || collision >= COLLISION_WHEELIE_HOP)
                 {
                     Bike_SetBikeStill();
                     PlayerOnBikeCollide(direction);
+                    gPlayerAvatar.moveBlocked = TRUE;
                 }
             }
         }
         else
         {
             MachBikeTransition_TrySpeedUp_Move(direction);
+            gPlayerAvatar.isMoving = TRUE;
         }
     }
 }
 
 static void MachBikeTransition_TrySlowDown_Move(u8 direction)
 {
-    sMachBikeSpeedCallbacks[gPlayerAvatar.bikeFrameCounter](direction);
+    sMachBikeSpeedCallbacks[MachBike_GetMovementSpeed()](direction);
 }
 
 static void MachBikeTransition_TrySlowDown(u8 direction)
 {
-    u8 collision;
-
-    if (gPlayerAvatar.bikeSpeed != PLAYER_SPEED_STANDING)
-        gPlayerAvatar.bikeFrameCounter = --gPlayerAvatar.bikeSpeed;
-
-    collision = GetBikeCollision(direction);
+    u8 collision = GetBikeCollision(direction);
 
     if (collision > 0 && collision < COLLISION_VERTICAL_RAIL)
     {
@@ -277,18 +323,50 @@ static void MachBikeTransition_TrySlowDown(u8 direction)
             {
                 Bike_SetBikeStill();
                 PlayerOnBikeCollideWithFarawayIslandMew(direction);
+                gPlayerAvatar.moveBlocked = TRUE;
             }
             else if (collision <= COLLISION_OBJECT_EVENT || collision >= COLLISION_WHEELIE_HOP)
             {
                 Bike_SetBikeStill();
                 PlayerOnBikeCollide(direction);
+                gPlayerAvatar.moveBlocked = TRUE;
             }
         }
     }
     else
     {
         MachBikeTransition_TrySlowDown_Move(direction);
+        gPlayerAvatar.isMoving = TRUE;
     }
+}
+
+static bool8 MachBike_Decelerate(void)
+{
+    struct ObjectEvent *playerObjEvent = &gObjectEvents[gPlayerAvatar.objectEventId];
+    u8 collision = PlayerCheckCollision(playerObjEvent->movementDirection);
+    u8 oldSpeed;
+
+    // Stop moving if bonked on something
+    if (collision == 1)
+    {
+        // Not sure if I need to set these first two
+        gPlayerAvatar.moveBlocked = TRUE;
+        playerObjEvent->moveBlocked = TRUE;
+        gPlayerAvatar.bikeFrameCounter = 0;
+        return FALSE;
+    }
+
+    if (gPlayerAvatar.bikeFrameCounter == 0)
+        return FALSE;
+
+    oldSpeed = MachBike_GetMovementSpeed();
+    gPlayerAvatar.bikeFrameCounter--;
+    if (MachBike_GetMovementSpeed() != oldSpeed)
+    {
+        ObjectEventClearHeldMovement(playerObjEvent);
+        MachBikeTransition_TrySlowDown_Move(playerObjEvent->movementDirection);
+    }
+    return TRUE;
 }
 
 // the acro bike requires the input handler to be executed before the transition can.
@@ -339,6 +417,7 @@ static u8 AcroBikeHandleInputNormal(u8 *newDirection, u16 newKeys, u16 heldKeys)
         return CheckMovementInputAcroBike(newDirection, newKeys, heldKeys);
     }
     gPlayerAvatar.runningState = MOVING;
+    gPlayerAvatar.isMoving = TRUE;
     return ACRO_TRANS_MOVING;
 }
 
@@ -374,6 +453,7 @@ static u8 AcroBikeHandleInputTurning(u8 *newDirection, u16 newKeys, u16 heldKeys
             // do a sideways jump.
             gPlayerAvatar.runningState = MOVING; // we need to move, set state to moving.
             gPlayerAvatar.acroBikeState = ACRO_STATE_SIDE_JUMP;
+            gPlayerAvatar.isMoving = TRUE;
             return ACRO_TRANS_SIDE_JUMP;
         }
     }
@@ -416,6 +496,7 @@ static u8 AcroBikeHandleInputWheelieStanding(u8 *newDirection, u16 newKeys, u16 
     {
         gPlayerAvatar.runningState = MOVING;
         gPlayerAvatar.acroBikeState = ACRO_STATE_WHEELIE_MOVING;
+        gPlayerAvatar.isMoving = TRUE;
         Bike_SetBikeStill();
         return ACRO_TRANS_WHEELIE_MOVING;
     }
@@ -472,6 +553,7 @@ static u8 AcroBikeHandleInputBunnyHop(u8 *newDirection, u16 newKeys, u16 heldKey
     }
     // otherwise, we started moving while hopping
     gPlayerAvatar.runningState = MOVING;
+    gPlayerAvatar.isMoving = TRUE;
     return ACRO_TRANS_WHEELIE_HOPPING_MOVING;
 }
 
@@ -505,6 +587,7 @@ static u8 AcroBikeHandleInputWheelieMoving(u8 *newDirection, u16 newKeys, u16 he
             }
             // if we are moving while lowering wheelie, put the acro into a lowering state while moving.
             gPlayerAvatar.runningState = MOVING;
+            gPlayerAvatar.isMoving = TRUE;
             return ACRO_TRANS_WHEELIE_LOWERING_MOVING;
         }
         // please do not undo the wheelie on a bumpy slope
@@ -527,6 +610,7 @@ static u8 AcroBikeHandleInputWheelieMoving(u8 *newDirection, u16 newKeys, u16 he
         return ACRO_TRANS_WHEELIE_IDLE;
     }
     gPlayerAvatar.runningState = MOVING;
+    gPlayerAvatar.isMoving = TRUE;
     return ACRO_TRANS_WHEELIE_MOVING;
 }
 
@@ -576,15 +660,20 @@ static void AcroBikeTransition_Moving(u8 direction)
         if (collision == COLLISION_LEDGE_JUMP)
             PlayerJumpLedge(direction);
         else if (collision == COLLISION_OBJECT_EVENT && IsPlayerCollidingWithFarawayIslandMew(direction))
+        {
             PlayerOnBikeCollideWithFarawayIslandMew(direction);
+            gPlayerAvatar.moveBlocked = TRUE;
+        }
         else if (collision <= COLLISION_OBJECT_EVENT || collision >= COLLISION_WHEELIE_HOP)
         {
             PlayerOnBikeCollide(direction);
+            gPlayerAvatar.moveBlocked = TRUE;
         }
     }
     else
     {
         PlayerRideWaterCurrent(direction);
+        gPlayerAvatar.isMoving = TRUE;
     }
 }
 
@@ -644,15 +733,19 @@ static void AcroBikeTransition_WheelieHoppingMoving(u8 direction)
         }
         if (collision >= COLLISION_STOP_SURFING && collision <= COLLISION_ROTATING_GATE)
         {
+            gPlayerAvatar.moveBlocked = TRUE;
             return;
         }
         if (collision < COLLISION_VERTICAL_RAIL)
         {
             AcroBikeTransition_WheelieHoppingStanding(direction);
+            gPlayerAvatar.moveBlocked = TRUE;
             return;
         }
     }
+    // FIXME:
     PlayerMovingHoppingWheelie(direction);
+    gPlayerAvatar.isMoving = TRUE;
 }
 
 static void AcroBikeTransition_SideJump(u8 direction)
@@ -719,6 +812,7 @@ static void AcroBikeTransition_WheelieMoving(u8 direction)
     }
     PlayerWheelieMove(direction);
     gPlayerAvatar.runningState = MOVING;
+    gPlayerAvatar.isMoving = TRUE;
 }
 
 static void AcroBikeTransition_WheelieRisingMoving(u8 direction)
@@ -753,6 +847,7 @@ static void AcroBikeTransition_WheelieRisingMoving(u8 direction)
     }
     PlayerPopWheelieWhileMoving(direction);
     gPlayerAvatar.runningState = MOVING;
+    gPlayerAvatar.isMoving = TRUE;
 }
 
 static void AcroBikeTransition_WheelieLoweringMoving(u8 direction)
@@ -871,6 +966,14 @@ static void Bike_UpdateABStartSelectHistory(u8 input)
 
 static u8 Bike_DPadToDirection(u16 heldKeys)
 {
+    if (heldKeys == (DPAD_UP | DPAD_LEFT))
+        return DIR_NORTHWEST;
+    if (heldKeys == (DPAD_UP | DPAD_RIGHT))
+        return DIR_NORTHEAST;
+    if (heldKeys == (DPAD_DOWN | DPAD_LEFT))
+        return DIR_SOUTHWEST;
+    if (heldKeys == (DPAD_DOWN | DPAD_RIGHT))
+        return DIR_SOUTHEAST;
     if (heldKeys & DPAD_UP)
         return DIR_NORTH;
     if (heldKeys & DPAD_DOWN)
@@ -884,13 +987,7 @@ static u8 Bike_DPadToDirection(u16 heldKeys)
 
 u8 GetBikeCollision(u8 direction)
 {
-    u8 metatitleBehavior;
-    struct ObjectEvent *playerObjEvent = &gObjectEvents[gPlayerAvatar.objectEventId];
-    s16 x = playerObjEvent->currentCoords.x;
-    s16 y = playerObjEvent->currentCoords.y;
-    MoveObjectEventCoords(direction, &x, &y);
-    metatitleBehavior = ObjectEventGetMetatileBehaviorAt(x, y);
-    return GetBikeCollisionAt(playerObjEvent, x, y, direction, metatitleBehavior);
+    return SensePlayerAvatarCollision(direction, GetBikeCollisionAt);
 }
 
 static u8 GetBikeCollisionAt(struct ObjectEvent *objectEvent, s16 x, s16 y, u8 direction, u8 metatitleBehavior)
@@ -1026,13 +1123,7 @@ void BikeClearState(int newDirHistory, int newAbStartHistory)
         gPlayerAvatar.abStartSelectTimerHistory[i] = 0;
 }
 
-void Bike_UpdateBikeCounterSpeed(u8 counter)
-{
-    gPlayerAvatar.bikeFrameCounter = counter;
-    gPlayerAvatar.bikeSpeed = gPlayerAvatar.bikeFrameCounter + (gPlayerAvatar.bikeFrameCounter >> 1); // lazy way of multiplying by 1.5.
-}
-
-static void Bike_SetBikeStill(void)
+void Bike_SetBikeStill(void)
 {
     gPlayerAvatar.bikeFrameCounter = 0;
     gPlayerAvatar.bikeSpeed = PLAYER_SPEED_STANDING;
@@ -1046,7 +1137,7 @@ s16 GetPlayerSpeed(void)
     memcpy(machSpeeds, sMachBikeSpeeds, sizeof(machSpeeds));
 
     if (gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_MACH_BIKE)
-        return machSpeeds[gPlayerAvatar.bikeFrameCounter];
+        return machSpeeds[MachBike_GetMovementSpeed()];
     else if (gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_ACRO_BIKE)
         return PLAYER_SPEED_FASTER;
     else if (gPlayerAvatar.flags & (PLAYER_AVATAR_FLAG_SURFING | PLAYER_AVATAR_FLAG_DASH))

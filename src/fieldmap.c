@@ -509,7 +509,7 @@ static void LoadSavedMapView(void)
     }
 }
 
-static void MoveMapViewToBackup(u8 direction, s8 xOffset, s8 yOffset)
+static void MoveMapViewToBackup(u8 direction)
 {
     int width;
     u16 *mapView;
@@ -517,13 +517,10 @@ static void MoveMapViewToBackup(u8 direction, s8 xOffset, s8 yOffset)
     int x2, y2;
     u16 *src, *dest;
     int srci, desti;
-    int r9, r8;
     int x, y;
     int i, j;
     mapView = gSaveBlock1Ptr->mapView;
     width = gBackupMapLayout.width;
-    r9 = 0;
-    r8 = 0;
     x0 = COORDS_TO_GRID(gSaveBlock1Ptr->pos.x);
     y0 = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y);
     x2 = MAP_OFFSET_W;
@@ -531,23 +528,15 @@ static void MoveMapViewToBackup(u8 direction, s8 xOffset, s8 yOffset)
     switch (direction)
     {
     case CONNECTION_NORTH:
-        x0 -= xOffset;
-        y0 += 1;
         y2 = MAP_OFFSET_H - 1;
         break;
     case CONNECTION_SOUTH:
-        x0 -= xOffset;
-        r8 = 1;
         y2 = MAP_OFFSET_H - 1;
         break;
     case CONNECTION_WEST:
-        y0 -= yOffset;
-        x0 += 1;
         x2 = MAP_OFFSET_W - 1;
         break;
     case CONNECTION_EAST:
-        y0 -= yOffset;
-        r9 = 1;
         x2 = MAP_OFFSET_W - 1;
         break;
     }
@@ -558,7 +547,7 @@ static void MoveMapViewToBackup(u8 direction, s8 xOffset, s8 yOffset)
         for (x = 0; x < x2; x++)
         {
             desti = width * (y + y0);
-            srci = (y + r8) * MAP_OFFSET_W + r9;
+            srci = y * MAP_OFFSET_W;
             src = &mapView[srci + i];
             dest = &sBackupMapData[x0 + desti + j];
             *dest = *src;
@@ -610,9 +599,8 @@ int GetMapBorderIdAt(int x, int y)
 
 int GetPostCameraMoveMapBorderId(int x, int y)
 {
-    // Is this correct...?
-    int map_x = COORDS_TO_GRID(gSaveBlock1Ptr->pos.x);
-    int map_y = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y);
+    int map_x = COORDS_TO_GRID(gSaveBlock1Ptr->pos.x + x);
+    int map_y = COORDS_TO_GRID(gSaveBlock1Ptr->pos.y + y);
     return GetMapBorderIdAt(map_x + MAP_OFFSET, map_y + MAP_OFFSET);
 }
 
@@ -630,27 +618,27 @@ bool32 CanCameraMoveInDirection(int direction)
     return TRUE;
 }
 
-static void SetPositionFromConnection(struct MapConnection *connection, int direction, int x, int y)
+static void SetPositionFromConnection(struct MapConnection *connection, int direction, int old_width, int old_height)
 {
     struct MapHeader const *mapHeader;
     mapHeader = GetMapHeaderFromConnection(connection);
     switch (direction)
     {
     case CONNECTION_EAST:
-        gSaveBlock1Ptr->pos.x = -x;
+        gSaveBlock1Ptr->pos.x -= old_width;
         gSaveBlock1Ptr->pos.y -= GRID_TO_COORDS(connection->offset);
         break;
     case CONNECTION_WEST:
-        gSaveBlock1Ptr->pos.x = GRID_TO_COORDS(mapHeader->mapLayout->width) + (gSaveBlock1Ptr->pos.x % OBJECT_EVENT_COORD_UNIT);
+        gSaveBlock1Ptr->pos.x += GRID_TO_COORDS(mapHeader->mapLayout->width);
         gSaveBlock1Ptr->pos.y -= GRID_TO_COORDS(connection->offset);
         break;
     case CONNECTION_SOUTH:
         gSaveBlock1Ptr->pos.x -= GRID_TO_COORDS(connection->offset);
-        gSaveBlock1Ptr->pos.y = -y;
+        gSaveBlock1Ptr->pos.y -= old_height;
         break;
     case CONNECTION_NORTH:
         gSaveBlock1Ptr->pos.x -= GRID_TO_COORDS(connection->offset);
-        gSaveBlock1Ptr->pos.y = GRID_TO_COORDS(mapHeader->mapLayout->height) + (gSaveBlock1Ptr->pos.y % OBJECT_EVENT_COORD_UNIT);
+        gSaveBlock1Ptr->pos.y += GRID_TO_COORDS(mapHeader->mapLayout->height);
         break;
     }
 }
@@ -669,21 +657,22 @@ bool8 CameraMove(int x, int y)
     }
     else
     {
-        // FIXME: redrawn map sometimes looks wrong
+        int map_width = GRID_TO_COORDS(gMapHeader.mapLayout->width);
+        int map_height = GRID_TO_COORDS(gMapHeader.mapLayout->height);
         SaveMapView();
         ClearMirageTowerPulseBlendEffect();
         old_x = gSaveBlock1Ptr->pos.x;
         old_y = gSaveBlock1Ptr->pos.y;
         connection = GetIncomingConnection(direction, gSaveBlock1Ptr->pos.x, gSaveBlock1Ptr->pos.y);
-        SetPositionFromConnection(connection, direction, x, y);
+        SetPositionFromConnection(connection, direction, map_width, map_height);
         LoadMapFromCameraTransition(connection->mapGroup, connection->mapNum);
         gCamera.active = TRUE;
         gCamera.x = old_x - gSaveBlock1Ptr->pos.x;
         gCamera.y = old_y - gSaveBlock1Ptr->pos.y;
+        MoveMapViewToBackup(direction);
         gSaveBlock1Ptr->pos.x += x;
         gSaveBlock1Ptr->pos.y += y;
-        MoveMapViewToBackup(direction, 0, 0); // TODO
-        SetCameraPosition(gSaveBlock1Ptr->pos.x, gSaveBlock1Ptr->pos.y);
+        OffsetCameraPositionForTransition(gCamera.x, gCamera.y);
     }
     return gCamera.active;
 }
