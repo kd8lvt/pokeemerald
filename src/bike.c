@@ -990,14 +990,14 @@ u8 GetBikeCollision(u8 direction)
     return SensePlayerAvatarCollision(direction, GetBikeCollisionAt);
 }
 
-static u8 GetBikeCollisionAt(struct ObjectEvent *objectEvent, s16 x, s16 y, u8 direction, u8 metatitleBehavior)
+static u8 GetBikeCollisionAt(struct ObjectEvent *objectEvent, s16 x, s16 y, u8 direction, u8 metatileBehavior)
 {
-    u8 collision = CheckForObjectEventCollision(objectEvent, x, y, direction, metatitleBehavior);
+    u8 collision = CheckForObjectEventCollision(objectEvent, x, y, direction, metatileBehavior);
 
     if (collision > COLLISION_OBJECT_EVENT)
         return collision;
 
-    if (collision == COLLISION_NONE && IsRunningDisallowedByMetatile(metatitleBehavior))
+    if (collision == COLLISION_NONE && IsRunningDisallowedByMetatile(metatileBehavior))
         collision = COLLISION_IMPASSABLE;
 
     if (collision)

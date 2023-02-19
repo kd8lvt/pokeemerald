@@ -32,7 +32,7 @@ static void DrawWholeMapViewInternal(int, int, const struct MapLayout *);
 static void DrawMetatileAt(const struct MapLayout *, u16, int, int);
 static void DrawMetatileHalfLeft(const struct MapLayout *, u16, int, int);
 static void DrawMetatileHalfRight(const struct MapLayout *, u16, int, int);
-static void DrawMetatile(s32, u16 *, u16);
+static void DrawMetatile(s32, const u16 *, u16);
 static void CameraPanningCB_PanAhead(void);
 static void OffsetCameraPosition(int x, int y);
 
@@ -270,10 +270,10 @@ void DrawDoorMetatileAt(int x, int y, u16 *tiles)
     }
 }
 
-static u16 *GetMetatile(const struct MapLayout *mapLayout, int x, int y)
+static const u16 *GetMetatile(const struct MapLayout *mapLayout, int x, int y)
 {
     u16 metatileId = MapGridGetMetatileIdAt(x, y);
-    u16 *metatiles;
+    const u16 *metatiles;
 
     if (metatileId > NUM_METATILES_TOTAL)
         metatileId = 0;
@@ -284,7 +284,7 @@ static u16 *GetMetatile(const struct MapLayout *mapLayout, int x, int y)
         metatiles = mapLayout->secondaryTileset->metatiles;
         metatileId -= NUM_METATILES_IN_PRIMARY;
     }
-    return metatiles + metatileId * 8;
+    return metatiles + metatileId * NUM_TILES_PER_METATILE;
 }
 
 static void DrawMetatileAt(const struct MapLayout *mapLayout, u16 offset, int x, int y)
@@ -292,7 +292,7 @@ static void DrawMetatileAt(const struct MapLayout *mapLayout, u16 offset, int x,
     DrawMetatile(MapGridGetMetatileLayerTypeAt(x, y), GetMetatile(mapLayout, x, y), offset);
 }
 
-static void DrawMetatile(s32 metatileLayerType, u16 *tiles, u16 offset)
+static void DrawMetatile(s32 metatileLayerType, const u16 *tiles, u16 offset)
 {
     switch (metatileLayerType)
     {
@@ -361,7 +361,7 @@ static void DrawMetatile(s32 metatileLayerType, u16 *tiles, u16 offset)
 
 static void DrawMetatileHalfLeft(const struct MapLayout *mapLayout, u16 offset, int x, int y)
 {
-    u16 *tiles = GetMetatile(mapLayout, x, y);
+    const u16 *tiles = GetMetatile(mapLayout, x, y);
     switch (MapGridGetMetatileLayerTypeAt(x, y))
     {
     case METATILE_LAYER_TYPE_SPLIT:
@@ -411,7 +411,7 @@ static void DrawMetatileHalfLeft(const struct MapLayout *mapLayout, u16 offset, 
 
 static void DrawMetatileHalfRight(const struct MapLayout *mapLayout, u16 offset, int x, int y)
 {
-    u16 *tiles = GetMetatile(mapLayout, x, y);
+    const u16 *tiles = GetMetatile(mapLayout, x, y);
     switch (MapGridGetMetatileLayerTypeAt(x, y))
     {
     case METATILE_LAYER_TYPE_SPLIT:
