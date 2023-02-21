@@ -467,17 +467,19 @@ static bool8 PlayerFaceApproachingTrainer(u8 taskId, struct Task *task, struct O
     if (ObjectEventIsMovementOverridden(trainerObj) && !ObjectEventClearHeldMovementIfFinished(trainerObj))
         return FALSE;
 
+    playerObj = &gObjectEvents[gPlayerAvatar.objectEventId];
+
     // Set trainer's movement type so they stop and remain facing that direction
+    SetObjectEventDirection(trainerObj, GetDirectionToFace(trainerObj->currentCoords.x, trainerObj->currentCoords.y, playerObj->currentCoords.x, playerObj->currentCoords.y));
     SetTrainerMovementType(trainerObj, GetTrainerFacingDirectionMovementType(trainerObj->facingDirection));
     TryOverrideTemplateCoordsForObjectEvent(trainerObj, GetTrainerFacingDirectionMovementType(trainerObj->facingDirection));
     OverrideTemplateCoordsForObjectEvent(trainerObj);
 
-    playerObj = &gObjectEvents[gPlayerAvatar.objectEventId];
     if (ObjectEventIsMovementOverridden(playerObj) && !ObjectEventClearHeldMovementIfFinished(playerObj))
         return FALSE;
 
     CancelPlayerForcedMovement();
-    ObjectEventSetHeldMovement(&gObjectEvents[gPlayerAvatar.objectEventId], GetFaceDirectionMovementAction(GetOppositeDirection(trainerObj->facingDirection)));
+    ObjectEventSetHeldMovement(&gObjectEvents[gPlayerAvatar.objectEventId], GetFaceDirectionMovementAction(GetDirectionToFace(playerObj->currentCoords.x, playerObj->currentCoords.y, trainerObj->currentCoords.x, trainerObj->currentCoords.y)));
     task->tFuncId++; // TRSEE_PLAYER_FACE_WAIT
     return FALSE;
 }

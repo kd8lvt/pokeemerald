@@ -159,6 +159,7 @@ bool8 CheckObjectEventCoordsHitboxXY(struct Coords16 *coords, int x, int y);
 bool8 CheckObjectEventHitboxXY(struct ObjectEvent *objectEvent, int x, int y);
 u8 GetObjectEventIdByPosition(u16 x, u16 y, u8 elevation);
 u8 GetObjectEventIdAroundPosition(u16 x, u16 y, u8 elevation);
+u8 GetDirectionToFace(s16 x, s16 y, s16 targetX, s16 targetY);
 void SetTrainerMovementType(struct ObjectEvent *objectEvent, u8 movementType);
 u8 GetTrainerFacingDirectionMovementType(u8 direction);
 const u8 *GetObjectEventScriptPointerByObjectEventId(u8 objectEventId);

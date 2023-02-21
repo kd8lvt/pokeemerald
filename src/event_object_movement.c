@@ -4798,27 +4798,27 @@ void SetStepAnim(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 anim
 u8 GetDirectionToFace(s16 x, s16 y, s16 targetX, s16 targetY)
 {
     // TODO: is this correct?
-    if (x > targetX + 16)
+    if (x > targetX + 8)
     {
-        if (y > targetY + 16)
+        if (y > targetY + 8)
             return DIR_NORTHWEST;
-        else if (y < targetY - 16)
+        else if (y < targetY - 8)
             return DIR_SOUTHWEST;
 
         return DIR_WEST;
     }
 
-    if (x < targetX - 16)
+    if (x < targetX - 8)
     {
-        if (y > targetY + 16)
+        if (y > targetY + 8)
             return DIR_NORTHEAST;
-        else if (y < targetY - 16)
+        else if (y < targetY - 8)
             return DIR_SOUTHEAST;
 
         return DIR_EAST;
     }
 
-    if (y > targetY + 16)
+    if (y > targetY + 8)
         return DIR_NORTH;
 
     return DIR_SOUTH;
