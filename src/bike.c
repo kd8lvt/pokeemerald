@@ -743,7 +743,6 @@ static void AcroBikeTransition_WheelieHoppingMoving(u8 direction)
             return;
         }
     }
-    // FIXME:
     PlayerMovingHoppingWheelie(direction);
     gPlayerAvatar.isMoving = TRUE;
 }

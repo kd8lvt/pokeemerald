@@ -346,34 +346,33 @@ static bool8 PlayerCanRun(void)
     return TRUE;
 }
 
+// Checks if the player is still moving, if they changed direction, or if they hit something
 static void PlayerCheckCurrentMovement(struct ObjectEvent *playerObjEvent, u8 direction, u16 newKeys, u16 heldKeys)
 {
     u8 collision;
     u8 playerDirection = playerObjEvent->movementDirection;
     bool8 doMovement = FALSE;
-    bool8 isRunning;
+    bool8 isDashing;
 
+    // Check if changed direction
     if (direction != DIR_NONE && playerDirection != DIR_NONE && playerDirection != direction)
-    {
         doMovement = TRUE;
-    }
     else if (PlayerCheckNotMoving(direction))
-    {
         return;
-    }
 
+    // Update bike movement
     if (gPlayerAvatar.flags & (PLAYER_AVATAR_FLAG_MACH_BIKE | PLAYER_AVATAR_FLAG_ACRO_BIKE))
         PlayerCheckCurrentBikeMovement(direction);
 
-    isRunning = gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_DASH;
+    // Update running/non-running state
+    isDashing = gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_DASH;
+
     if (PlayerCanRun() && (heldKeys & B_BUTTON))
     {
-        if (!isRunning)
-        {
+        if (!isDashing)
             doMovement = TRUE;
-        }
     }
-    else if (isRunning)
+    else if (isDashing)
     {
         doMovement = TRUE;
         gPlayerAvatar.flags &= ~PLAYER_AVATAR_FLAG_DASH;
@@ -382,17 +381,19 @@ static void PlayerCheckCurrentMovement(struct ObjectEvent *playerObjEvent, u8 di
     if (doMovement)
         ChangePlayerDirectionAndMove(playerObjEvent, direction, newKeys, heldKeys);
 
+    // Check if hit something
     collision = PlayerCheckCollision(direction);
     if (collision == 1)
     {
         gPlayerAvatar.moveBlocked = TRUE;
-        playerObjEvent->moveBlocked = TRUE;
     }
     else if (collision != 0)
     {
         gPlayerAvatar.moveBlocked = FALSE;
-        playerObjEvent->moveBlocked = FALSE;
     }
+
+    // TODO: maybe just have one moveBlocked :S
+    playerObjEvent->moveBlocked = gPlayerAvatar.moveBlocked;
 }
 
 void PlayerStep(u8 direction, u16 newKeys, u16 heldKeys)
@@ -416,9 +417,7 @@ void PlayerStep(u8 direction, u16 newKeys, u16 heldKeys)
         }
 
         if (gPlayerAvatar.isMoving == TRUE)
-        {
             PlayerCheckCurrentMovement(playerObjEvent, direction, newKeys, heldKeys);
-        }
     }
 }
 
@@ -478,7 +477,21 @@ static void npc_clear_strange_bits(struct ObjectEvent *objEvent)
 
 static void ChangePlayerDirectionAndMove(struct ObjectEvent *playerObjEvent, u8 direction, u16 newKeys, u16 heldKeys)
 {
-    ObjectEventClearHeldMovement(playerObjEvent);
+    bool8 clearMovement = TRUE;
+
+    if (gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_ACRO_BIKE)
+    {
+        if (gPlayerAvatar.acroBikeState == ACRO_STATE_BUNNY_HOP
+        || gPlayerAvatar.acroBikeState == ACRO_STATE_SIDE_JUMP
+        || gPlayerAvatar.acroBikeState == ACRO_STATE_TURN_JUMP)
+        {
+            clearMovement = FALSE;
+        }
+    }
+
+    if (clearMovement)
+        ObjectEventClearHeldMovement(playerObjEvent);
+
     MovePlayerAvatarUsingKeypadInput(direction, newKeys, heldKeys);
 }
 
@@ -1126,8 +1139,7 @@ void PlayerSetAnimId(u8 movementActionId, u8 copyableMovement)
 {
     if (!PlayerIsAnimActive())
     {
-        // TODO:
-        PlayerSetCopyableMovement(copyableMovement);
+        PlayerSetCopyableMovement(copyableMovement); // TODO
         ObjectEventSetHeldMovement(&gObjectEvents[gPlayerAvatar.objectEventId], movementActionId);
     }
 }
@@ -1224,9 +1236,24 @@ void PlayerEndWheelie(u8 direction)
     PlayerSetAnimId(GetAcroEndWheelieFaceDirectionMovementAction(direction), COPY_MOVE_FACE);
 }
 
+static void PlayerHoppingWheelieChangeDirection(u8 direction)
+{
+    struct Sprite *sprite = &gSprites[gPlayerAvatar.spriteId];
+    SetObjectEventDirection(&gObjectEvents[gPlayerAvatar.objectEventId], direction);
+    StartSpriteAnimIfDifferent(sprite, GetAcroWheelieDirectionAnimNum(direction));
+    sprite->data[3] = direction;
+}
+
 // wheelie hopping standing
 void PlayerStandingHoppingWheelie(u8 direction)
 {
+    if (PlayerIsAnimActive())
+    {
+        // HACK: Just change the player's direction
+        PlayerHoppingWheelieChangeDirection(direction);
+        return;
+    }
+
     PlaySE(SE_BIKE_HOP);
     PlayerSetAnimId(GetAcroWheelieHopFaceDirectionMovementAction(direction), COPY_MOVE_FACE);
 }
@@ -1234,6 +1261,13 @@ void PlayerStandingHoppingWheelie(u8 direction)
 // wheelie hopping moving
 void PlayerMovingHoppingWheelie(u8 direction)
 {
+    if (PlayerIsAnimActive())
+    {
+        // HACK: Just change the player's direction
+        PlayerHoppingWheelieChangeDirection(direction);
+        return;
+    }
+
     PlaySE(SE_BIKE_HOP);
     PlayerSetAnimId(GetAcroWheelieHopDirectionMovementAction(direction), COPY_MOVE_WALK);
 }

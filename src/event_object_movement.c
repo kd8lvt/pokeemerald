@@ -2830,6 +2830,7 @@ bool8 ObjectEventIsTrainerAndCloseToPlayer(struct ObjectEvent *objectEvent)
     return TRUE;
 }
 
+// TODO: make all of these work with diagonals
 u8 GetVectorDirection(s16 dx, s16 dy, s16 absdx, s16 absdy)
 {
     u8 direction;
@@ -5659,16 +5660,7 @@ enum {
 
 static void InitJump(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 direction, u8 distance, u8 type)
 {
-    s16 displacements[ARRAY_COUNT(sJumpInitDisplacements)];
-    s16 x;
-    s16 y;
-
-    memcpy(displacements, sJumpInitDisplacements, sizeof sJumpInitDisplacements);
-    x = 0;
-    y = 0;
     SetObjectEventDirection(objectEvent, direction);
-    MoveCoordsInDirection(direction, &x, &y, displacements[distance], displacements[distance]);
-    ShiftObjectEventCoords(objectEvent, objectEvent->currentCoords.x + x, objectEvent->currentCoords.y + y);
     SetJumpSpriteData(sprite, direction, distance, type);
     sprite->sActionFuncId = 1;
     sprite->animPaused = FALSE;
@@ -5696,16 +5688,11 @@ static u8 UpdateJumpAnim(struct ObjectEvent *objectEvent, struct Sprite *sprite,
     result = callback(objectEvent, sprite);
     if (result == JUMP_HALFWAY && displacements[sprite->sDistance] != 0)
     {
-        x = 0;
-        y = 0;
-        MoveCoordsInDirection(objectEvent->movementDirection, &x, &y, displacements[sprite->sDistance], displacements[sprite->sDistance]);
-        ShiftObjectEventCoords(objectEvent, objectEvent->currentCoords.x + x, objectEvent->currentCoords.y + y);
         objectEvent->triggerGroundEffectsOnMove = TRUE;
         objectEvent->disableCoveringGroundEffects = TRUE;
     }
     else if (result == JUMP_FINISHED)
     {
-        ShiftStillObjectEventCoords(objectEvent);
         ClearObjectEventTargetCoords(objectEvent);
         objectEvent->triggerGroundEffectsOnStop = TRUE;
         objectEvent->landingJump = TRUE;
