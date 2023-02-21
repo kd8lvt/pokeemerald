@@ -187,7 +187,6 @@ static u8 GetMachBikeTransition(u8 *dirTraveling)
             return MACH_TRANS_FACE_DIRECTION;
         }
         gPlayerAvatar.runningState = MOVING;
-        gPlayerAvatar.isMoving = TRUE;
         return MACH_TRANS_START_MOVING;
     }
 
@@ -198,7 +197,6 @@ static u8 GetMachBikeTransition(u8 *dirTraveling)
         {
             *dirTraveling = direction; // implement the new direction
             gPlayerAvatar.runningState = MOVING;
-            gPlayerAvatar.isMoving = TRUE;
             return MACH_TRANS_START_MOVING;
         }
         // if you didnt start moving but your dir was different, do a turn direction instead.
@@ -208,7 +206,6 @@ static u8 GetMachBikeTransition(u8 *dirTraveling)
     else // the player is either going in the current direction and hasnt changed or their state is currently moving.
     {
         gPlayerAvatar.runningState = MOVING;
-        gPlayerAvatar.isMoving = TRUE;
         return MACH_TRANS_KEEP_MOVING;
     }
 }
@@ -417,7 +414,6 @@ static u8 AcroBikeHandleInputNormal(u8 *newDirection, u16 newKeys, u16 heldKeys)
         return CheckMovementInputAcroBike(newDirection, newKeys, heldKeys);
     }
     gPlayerAvatar.runningState = MOVING;
-    gPlayerAvatar.isMoving = TRUE;
     return ACRO_TRANS_MOVING;
 }
 
@@ -453,7 +449,6 @@ static u8 AcroBikeHandleInputTurning(u8 *newDirection, u16 newKeys, u16 heldKeys
             // do a sideways jump.
             gPlayerAvatar.runningState = MOVING; // we need to move, set state to moving.
             gPlayerAvatar.acroBikeState = ACRO_STATE_SIDE_JUMP;
-            gPlayerAvatar.isMoving = TRUE;
             return ACRO_TRANS_SIDE_JUMP;
         }
     }
@@ -496,7 +491,6 @@ static u8 AcroBikeHandleInputWheelieStanding(u8 *newDirection, u16 newKeys, u16 
     {
         gPlayerAvatar.runningState = MOVING;
         gPlayerAvatar.acroBikeState = ACRO_STATE_WHEELIE_MOVING;
-        gPlayerAvatar.isMoving = TRUE;
         Bike_SetBikeStill();
         return ACRO_TRANS_WHEELIE_MOVING;
     }
@@ -553,7 +547,6 @@ static u8 AcroBikeHandleInputBunnyHop(u8 *newDirection, u16 newKeys, u16 heldKey
     }
     // otherwise, we started moving while hopping
     gPlayerAvatar.runningState = MOVING;
-    gPlayerAvatar.isMoving = TRUE;
     return ACRO_TRANS_WHEELIE_HOPPING_MOVING;
 }
 
@@ -587,7 +580,6 @@ static u8 AcroBikeHandleInputWheelieMoving(u8 *newDirection, u16 newKeys, u16 he
             }
             // if we are moving while lowering wheelie, put the acro into a lowering state while moving.
             gPlayerAvatar.runningState = MOVING;
-            gPlayerAvatar.isMoving = TRUE;
             return ACRO_TRANS_WHEELIE_LOWERING_MOVING;
         }
         // please do not undo the wheelie on a bumpy slope
@@ -610,7 +602,6 @@ static u8 AcroBikeHandleInputWheelieMoving(u8 *newDirection, u16 newKeys, u16 he
         return ACRO_TRANS_WHEELIE_IDLE;
     }
     gPlayerAvatar.runningState = MOVING;
-    gPlayerAvatar.isMoving = TRUE;
     return ACRO_TRANS_WHEELIE_MOVING;
 }
 
