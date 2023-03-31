@@ -324,6 +324,7 @@ static bool8 DoesTrainerCollideWithPlayerAt(struct ObjectEvent *objectEvent, s16
 static u16 CheckPathBetweenTrainerAndPlayer(struct ObjectEvent *trainerObj, u16 approachDistance, u8 direction)
 {
     s16 x, y;
+    s16 xymove;
     u16 i;
 
     if (approachDistance == 0)
@@ -331,9 +332,10 @@ static u16 CheckPathBetweenTrainerAndPlayer(struct ObjectEvent *trainerObj, u16 
 
     x = trainerObj->currentCoords.x;
     y = trainerObj->currentCoords.y;
+    xymove = 1 << OBJECT_EVENT_COORD_SHIFT;
 
     MoveObjectEventCoords(direction, &x, &y);
-    for (i = 0; i < approachDistance; i += 8, MoveObjectEventCoords(direction, &x, &y))
+    for (i = 0; i < approachDistance; i += xymove, MoveObjectEventCoords(direction, &x, &y))
     {
         // Check for collisions on approach, ignoring the "out of range" collision for regular movement
         u8 collision = GetCollisionFlagsAtCoords(trainerObj, x, y, direction);
@@ -398,6 +400,14 @@ static bool8 TrainerSeeIdle(u8 taskId, struct Task *task, struct ObjectEvent *tr
     return FALSE;
 }
 
+static u8 TrainerGetDirectionToPlayer(struct ObjectEvent *trainerObj)
+{
+    struct ObjectEvent *playerObj = &gObjectEvents[gPlayerAvatar.objectEventId];
+    s16 playerX = playerObj->currentCoords.x;
+    s16 playerY = playerObj->currentCoords.y;
+    return GetDirectionToFace(trainerObj->currentCoords.x, trainerObj->currentCoords.y, playerX, playerY);
+}
+
 // TRSEE_EXCLAMATION
 static bool8 TrainerExclamationMark(u8 taskId, struct Task *task, struct ObjectEvent *trainerObj)
 {
@@ -420,11 +430,16 @@ static bool8 WaitTrainerExclamationMark(u8 taskId, struct Task *task, struct Obj
     }
     else
     {
-        task->tFuncId++; // TRSEE_MOVE_TO_PLAYER
         if (trainerObj->movementType == MOVEMENT_TYPE_TREE_DISGUISE || trainerObj->movementType == MOVEMENT_TYPE_MOUNTAIN_DISGUISE)
             task->tFuncId = TRSEE_REVEAL_DISGUISE;
-        if (trainerObj->movementType == MOVEMENT_TYPE_BURIED)
+        else if (trainerObj->movementType == MOVEMENT_TYPE_BURIED)
             task->tFuncId = TRSEE_REVEAL_BURIED;
+        else
+        {
+            ObjectEventClearHeldMovement(trainerObj);
+            SetObjectEventDirection(trainerObj, TrainerGetDirectionToPlayer(trainerObj));
+            task->tFuncId++; // TRSEE_MOVE_TO_PLAYER
+        }
         return TRUE;
     }
 }
@@ -433,30 +448,31 @@ static bool8 WaitTrainerExclamationMark(u8 taskId, struct Task *task, struct Obj
 static bool8 TrainerMoveToPlayer(u8 taskId, struct Task *task, struct ObjectEvent *trainerObj)
 {
     struct ObjectEvent *playerObj = &gObjectEvents[gPlayerAvatar.objectEventId];
-    int playerX = playerObj->currentCoords.x;
-    int playerY = playerObj->currentCoords.y;
-    int diffX = playerX - trainerObj->currentCoords.x;
-    int diffY = playerY - trainerObj->currentCoords.y;
+    s16 trainerX = trainerObj->currentCoords.x;
+    s16 trainerY = trainerObj->currentCoords.y;
+    s16 playerX = playerObj->currentCoords.x;
+    s16 playerY = playerObj->currentCoords.y;
+    s16 diffX = playerX - trainerX;
+    s16 diffY = playerY - trainerY;
 
-    // get close up and personal like this stranger is about to hug you
-    if (abs(diffX) > 16 || abs(diffY) > 16)
+    // get close up and personal like you're about to hug this stranger
+    if (abs(diffX) > 16 << OBJECT_EVENT_FRAC_SHIFT || abs(diffY) > 16 << OBJECT_EVENT_FRAC_SHIFT)
     {
+        u16 angle = ArcTan2(diffX, diffY);
+        angle = (angle * 360) / 0xFFFF;
+        MoveObjectEventAtSpeed(trainerObj, 1 << OBJECT_EVENT_COORD_SHIFT, angle);
+
         if (!ObjectEventIsMovementOverridden(trainerObj) || ObjectEventClearHeldMovementIfFinished(trainerObj))
-        {
-            // TODO: could be better?
-            ObjectEventSetHeldMovement(trainerObj, GetWalkNormalMovementAction(trainerObj->facingDirection));
-            trainerObj->targetCoords.x = trainerObj->currentCoords.x + ((diffX * OBJECT_EVENT_COORD_UNIT) / task->tTrainerRange);
-            trainerObj->targetCoords.y = trainerObj->currentCoords.y + ((diffY * OBJECT_EVENT_COORD_UNIT) / task->tTrainerRange);
-            trainerObj->useTargetCoords = TRUE;
-        }
+            ObjectEventSetHeldMovement(trainerObj, GetWalkInPlaceNormalMovementAction(trainerObj->facingDirection));
     }
     else
     {
         ObjectEventClearHeldMovementIfActive(trainerObj);
         ObjectEventSetHeldMovement(trainerObj, MOVEMENT_ACTION_FACE_PLAYER);
         task->tFuncId++; // TRSEE_PLAYER_FACE
-        return FALSE;
     }
+
+    return FALSE;
 }
 
 // TRSEE_PLAYER_FACE
@@ -470,7 +486,6 @@ static bool8 PlayerFaceApproachingTrainer(u8 taskId, struct Task *task, struct O
     playerObj = &gObjectEvents[gPlayerAvatar.objectEventId];
 
     // Set trainer's movement type so they stop and remain facing that direction
-    SetObjectEventDirection(trainerObj, GetDirectionToFace(trainerObj->currentCoords.x, trainerObj->currentCoords.y, playerObj->currentCoords.x, playerObj->currentCoords.y));
     SetTrainerMovementType(trainerObj, GetTrainerFacingDirectionMovementType(trainerObj->facingDirection));
     TryOverrideTemplateCoordsForObjectEvent(trainerObj, GetTrainerFacingDirectionMovementType(trainerObj->facingDirection));
     OverrideTemplateCoordsForObjectEvent(trainerObj);

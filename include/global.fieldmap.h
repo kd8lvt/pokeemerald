@@ -195,9 +195,9 @@ struct ObjectEvent
              u32 disableJumpLandingGroundEffect:1;
              u32 fixedPriority:1;
              u32 hideReflection:1;
+             u32 isMidAir:1;
              u32 moveBlocked:1;
              u32 useTargetCoords:1;
-             // FIXME: only the player needs to keep track of this
              u32 tookStep:1;
              u32 moveToTileCenter:1;
     /*0x04*/ u8 spriteId;
@@ -213,9 +213,7 @@ struct ObjectEvent
     /*0x10*/ struct Coords16 currentCoords;
     /*0x14*/ struct Coords16 previousCoords;
     /*0x18*/ struct Coords16 targetCoords;
-             // FIXME: see the previous one
-             u8 pixelsMovedX:4;
-             u8 pixelsMovedY:4;
+             struct Coords16 pixelsMoved;
     /*0x1C*/ u16 facingDirection:4; // current direction?
              u16 movementDirection:4;
              u16 rangeX:4;
@@ -328,7 +326,11 @@ struct PlayerAvatar
     u8 tookStep:1;
     u8 moveBlocked:1;
     u8 preventStep:1;
+    u8 changedTile:1;
     u8 gender;
+    u16 lastTileX;
+    u16 lastTileY;
+    s8 spawnWarpEventId;
     u8 acroBikeState; // 00 is normal, 01 is turning, 02 is standing wheelie, 03 is hopping wheelie
     u8 newDirBackup; // during bike movement, the new direction as opposed to player's direction is backed up here.
     u8 bikeFrameCounter; // on the mach bike, when this value is 1, the bike is moving but not accelerating yet for 1 tile. on the acro bike, this acts as a timer for acro bike.

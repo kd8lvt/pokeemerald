@@ -19,6 +19,7 @@
 #include "random.h"
 #include "sprite.h"
 #include "task.h"
+#include "trig.h"
 #include "trainer_see.h"
 #include "trainer_hill.h"
 #include "util.h"
@@ -84,6 +85,11 @@ static bool8 ObjectEventExecSingleMovementAction(struct ObjectEvent *, struct Sp
 static void SetMovementDelay(struct Sprite *, s16);
 static bool8 WaitForMovementDelay(struct Sprite *);
 static u8 GetCollisionInDirection(struct ObjectEvent *, u8);
+static u8 GetCollisionInAngle(struct ObjectEvent *, int);
+static u8 GetCollisionInAngleWithDistance(struct ObjectEvent *, int, int);
+static void DoObjectEventMovement(struct ObjectEvent *objectEvent, struct Sprite *sprite, u16 speed, u16 angle);
+static void UpdateObjectEventTookStep(struct ObjectEvent *objectEvent, int x, int y);
+static void InitNpcForMovement(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 direction, u8 speed);
 static u32 GetCopyDirection(u8, u32, u32);
 static void TryEnableObjectEventAnim(struct ObjectEvent *, struct Sprite *);
 static void ObjectEventExecHeldMovementAction(struct ObjectEvent *, struct Sprite *);
@@ -91,7 +97,7 @@ static void UpdateObjectEventSpriteAnimPause(struct ObjectEvent *, struct Sprite
 static bool8 IsCoordOutsideObjectEventMovementRange(struct ObjectEvent *, s16, s16);
 static bool8 IsMetatileDirectionallyImpassable(struct ObjectEvent *, s16, s16, u8);
 static bool8 DoesObjectCollideWithObjectAt(struct ObjectEvent *, s16, s16);
-static void ClearObjectEventTargetCoords(struct ObjectEvent *);
+static void StopObjectEventMovement(struct ObjectEvent *);
 static void UpdateObjectEventOffscreen(struct ObjectEvent *, struct Sprite *);
 static void UpdateObjectEventSpriteVisibility(struct ObjectEvent *, struct Sprite *);
 static void ObjectEventUpdateMetatileBehaviors(struct ObjectEvent *);
@@ -284,6 +290,7 @@ static void (*const sMovementTypeCallbacks[])(struct Sprite *) =
     [MOVEMENT_TYPE_WALK_SLOWLY_IN_PLACE_UP] = MovementType_WalkSlowlyInPlace,
     [MOVEMENT_TYPE_WALK_SLOWLY_IN_PLACE_LEFT] = MovementType_WalkSlowlyInPlace,
     [MOVEMENT_TYPE_WALK_SLOWLY_IN_PLACE_RIGHT] = MovementType_WalkSlowlyInPlace,
+    [MOVEMENT_TYPE_WALK_IN_CIRCLES] = MovementType_WalkInCircles
 };
 
 static const bool8 sMovementTypeHasRange[NUM_MOVEMENT_TYPES] = {
@@ -412,6 +419,7 @@ const u8 gInitialMovementTypeFacingDirections[] = {
     [MOVEMENT_TYPE_WALK_SLOWLY_IN_PLACE_UP] = DIR_NORTH,
     [MOVEMENT_TYPE_WALK_SLOWLY_IN_PLACE_LEFT] = DIR_WEST,
     [MOVEMENT_TYPE_WALK_SLOWLY_IN_PLACE_RIGHT] = DIR_EAST,
+    [MOVEMENT_TYPE_WALK_IN_CIRCLES] = DIR_EAST
 };
 
 #define OBJ_EVENT_PAL_TAG_BRENDAN                 0x1100
@@ -904,6 +912,19 @@ static const struct Coords16 sDirectionToVectors[] = {
     { 1,  1},
     {-1, -1},
     { 1, -1}
+};
+
+// FIXME: lol
+static const u16 sDirectionToAngles[] = {
+    90,
+    90,
+    270,
+    180,
+    0,
+    135,
+    45,
+    225,
+    315
 };
 
 const u8 gFaceDirectionMovementActions[] = {
@@ -1416,6 +1437,8 @@ static u8 InitObjectEventStateFromTemplate(struct ObjectEventTemplate *template,
     objectEvent->currentCoords.y = objectEvent->initialCoords.y;
     objectEvent->previousCoords.x = objectEvent->currentCoords.x;
     objectEvent->previousCoords.y = objectEvent->currentCoords.y;
+    objectEvent->pixelsMoved.x = 8 << OBJECT_EVENT_FRAC_SHIFT;
+    objectEvent->pixelsMoved.y = 8 << OBJECT_EVENT_FRAC_SHIFT;
     objectEvent->currentElevation = template->elevation;
     objectEvent->previousElevation = template->elevation;
     objectEvent->rangeX = template->movementRangeX;
@@ -1426,7 +1449,7 @@ static u8 InitObjectEventStateFromTemplate(struct ObjectEventTemplate *template,
     objectEvent->previousMovementDirection = gInitialMovementTypeFacingDirections[template->movementType];
     SetObjectEventDirection(objectEvent, objectEvent->previousMovementDirection);
     SetObjectEventDynamicGraphicsId(objectEvent);
-    ClearObjectEventTargetCoords(objectEvent);
+    StopObjectEventMovement(objectEvent);
     if (sMovementTypeHasRange[objectEvent->movementType])
     {
         if (objectEvent->rangeX == 0)
@@ -2261,12 +2284,21 @@ void TryMoveObjectEventToMapCoords(u8 localId, u8 mapNum, u8 mapGroup, s16 x, s1
     }
 }
 
+// TODO: remove this?
 void ShiftStillObjectEventCoords(struct ObjectEvent *objectEvent)
 {
     ShiftObjectEventCoords(objectEvent, objectEvent->currentCoords.x, objectEvent->currentCoords.y);
 }
 
-void UpdateObjectEventCoordsForCameraUpdate(void)
+static void UpdateObjectEventSpriteCoords(struct ObjectEvent* objEvent)
+{
+    struct Sprite *sprite = &gSprites[objEvent->spriteId];
+    SetSpritePosToMapCoords(objEvent->currentCoords.x, objEvent->currentCoords.y, &sprite->x, &sprite->y);
+    sprite->x += 8;
+    sprite->y += 16 + sprite->centerToCornerVecY;
+}
+
+static void UpdateObjectEventCoordsForTransition(void)
 {
     u8 i;
     s16 dx;
@@ -2286,17 +2318,30 @@ void UpdateObjectEventCoordsForCameraUpdate(void)
                 gObjectEvents[i].currentCoords.y -= dy;
                 gObjectEvents[i].previousCoords.x -= dx;
                 gObjectEvents[i].previousCoords.y -= dy;
+                gObjectEvents[i].targetCoords.x -= dx;
+                gObjectEvents[i].targetCoords.y -= dy;
             }
+        }
+    }
+}
+
+// FIXME: Yikes.
+static void UpdateObjectEventSpritesForCameraUpdate(void)
+{
+    u8 i;
+    for (i = 0; i < OBJECT_EVENTS_COUNT; i++)
+    {
+        if (gObjectEvents[i].active)
+        {
+            UpdateObjectEventSpriteCoords(&gObjectEvents[i]);
         }
     }
 }
 
 bool8 CheckObjectEventCoordsHitboxXY(struct Coords16 *coords, int x, int y)
 {
-    // 8 is half of an object event's hitbox
-    // TODO: should be a constant, or ObjectEvent fields
-    if (x >= coords->x - 8 && x <= coords->x + 8
-     && y >= coords->y - 8 && y <= coords->y + 8)
+    if (x >= coords->x - OBJECT_EVENT_HITBOX_HALF && x <= coords->x + OBJECT_EVENT_HITBOX_HALF
+     && y >= coords->y - OBJECT_EVENT_HITBOX_HALF && y <= coords->y + OBJECT_EVENT_HITBOX_HALF)
         return TRUE;
 
     return FALSE;
@@ -2348,22 +2393,50 @@ static bool8 ObjectEventDoesElevationMatch(struct ObjectEvent *objectEvent, u8 e
     return TRUE;
 }
 
+u8 AngleToDirection(int angle)
+{
+    angle = (angle % 360) / 45;
+
+    switch (angle)
+    {
+    case 0:
+        return DIR_WEST;
+    case 1:
+        return DIR_NORTHWEST;
+    case 2:
+        return DIR_NORTH;
+    case 3:
+        return DIR_NORTHEAST;
+    case 4:
+        return DIR_EAST;
+    case 5:
+        return DIR_SOUTHEAST;
+    case 6:
+        return DIR_SOUTH;
+    case 7:
+        return DIR_SOUTHWEST;
+    }
+
+    return DIR_NONE;
+}
+
 void UpdateObjectEventsForCameraUpdate(void)
 {
-    UpdateObjectEventCoordsForCameraUpdate();
+    UpdateObjectEventCoordsForTransition();
+    UpdateObjectEventSpritesForCameraUpdate();
     TrySpawnObjectEvents();
     RemoveObjectEventsOutsideView();
 }
 
-#define sLinkedSpriteId data[0]
-#define sState          data[1]
+#define sLinkedObjectEventId data[0]
+#define sState               data[1]
 
-u8 AddCameraObject(u8 linkedSpriteId)
+u8 AddCameraObject(u8 linkedObjectEventId)
 {
     u8 spriteId = CreateSprite(&sCameraSpriteTemplate, 0, 0, 4);
 
     gSprites[spriteId].invisible = TRUE;
-    gSprites[spriteId].sLinkedSpriteId = linkedSpriteId;
+    gSprites[spriteId].sLinkedObjectEventId = linkedObjectEventId;
     return spriteId;
 }
 
@@ -2377,8 +2450,8 @@ static void SpriteCB_CameraObject(struct Sprite *sprite)
 
 static void CameraObject_0(struct Sprite *sprite)
 {
-    sprite->x = gSprites[sprite->sLinkedSpriteId].x;
-    sprite->y = gSprites[sprite->sLinkedSpriteId].y;
+    sprite->x = gObjectEvents[sprite->sLinkedObjectEventId].currentCoords.x;
+    sprite->y = gObjectEvents[sprite->sLinkedObjectEventId].currentCoords.y;
     sprite->invisible = TRUE;
     sprite->sState = 1;
     CameraObject_1(sprite);
@@ -2386,8 +2459,8 @@ static void CameraObject_0(struct Sprite *sprite)
 
 static void CameraObject_1(struct Sprite *sprite)
 {
-    s16 x = gSprites[sprite->sLinkedSpriteId].x;
-    s16 y = gSprites[sprite->sLinkedSpriteId].y;
+    s16 x = gObjectEvents[sprite->sLinkedObjectEventId].currentCoords.x;
+    s16 y = gObjectEvents[sprite->sLinkedObjectEventId].currentCoords.y;
 
     sprite->data[2] = x - sprite->x;
     sprite->data[3] = y - sprite->y;
@@ -2397,8 +2470,8 @@ static void CameraObject_1(struct Sprite *sprite)
 
 static void CameraObject_2(struct Sprite *sprite)
 {
-    sprite->x = gSprites[sprite->sLinkedSpriteId].x;
-    sprite->y = gSprites[sprite->sLinkedSpriteId].y;
+    sprite->x = gObjectEvents[sprite->sLinkedObjectEventId].currentCoords.x;
+    sprite->y = gObjectEvents[sprite->sLinkedObjectEventId].currentCoords.y;
     sprite->data[2] = 0;
     sprite->data[3] = 0;
 }
@@ -2434,7 +2507,7 @@ void CameraObjectSetFollowedSpriteId(u8 spriteId)
     camera = FindCameraSprite();
     if (camera != NULL)
     {
-        camera->sLinkedSpriteId = spriteId;
+        camera->sLinkedObjectEventId = spriteId;
         CameraObjectReset1();
     }
 }
@@ -2448,7 +2521,7 @@ static u8 CameraObjectGetFollowedSpriteId(void)
     if (camera == NULL)
         return MAX_SPRITES;
 
-    return camera->sLinkedSpriteId;
+    return camera->sLinkedObjectEventId;
 }
 
 void CameraObjectReset2(void)
@@ -2530,7 +2603,7 @@ static void SetObjectEventTargetCoords(struct ObjectEvent *objectEvent, u8 direc
     }
 }
 
-static void ClearObjectEventTargetCoords(struct ObjectEvent *objectEvent)
+static void StopObjectEventMovement(struct ObjectEvent *objectEvent)
 {
     objectEvent->useTargetCoords = FALSE;
     objectEvent->moveToTileCenter = FALSE;
@@ -2768,11 +2841,11 @@ bool8 MovementType_WanderAround_Step3(struct ObjectEvent *objectEvent, struct Sp
 
 bool8 MovementType_WanderAround_Step4(struct ObjectEvent *objectEvent, struct Sprite *sprite)
 {
-    u8 directions[4];
+    u8 directions[8];
     u8 chosenDirection;
 
     memcpy(directions, gStandardDirections, sizeof directions);
-    chosenDirection = directions[Random() & 3];
+    chosenDirection = directions[Random() & 7];
     SetObjectEventDirection(objectEvent, chosenDirection);
     sprite->sTypeFuncId = 5;
     if (GetCollisionInDirection(objectEvent, chosenDirection))
@@ -3057,11 +3130,11 @@ bool8 MovementType_LookAround_Step3(struct ObjectEvent *objectEvent, struct Spri
 bool8 MovementType_LookAround_Step4(struct ObjectEvent *objectEvent, struct Sprite *sprite)
 {
     u8 direction;
-    u8 directions[4];
+    u8 directions[8];
     memcpy(directions, gStandardDirections, sizeof directions);
     direction = TryGetTrainerEncounterDirection(objectEvent, RUNFOLLOW_ANY);
     if (direction == DIR_NONE)
-        direction = directions[Random() & 3];
+        direction = directions[Random() & 7];
 
     SetObjectEventDirection(objectEvent, direction);
     sprite->sTypeFuncId = 1;
@@ -4613,6 +4686,68 @@ bool8 MovementType_WalkSlowlyInPlace_Step0(struct ObjectEvent *objectEvent, stru
     return TRUE;
 }
 
+movement_type_def(MovementType_WalkInCircles, gMovementTypeFuncs_WalkInCircles)
+
+bool8 MovementType_WalkInCircles_Step0(struct ObjectEvent *objectEvent, struct Sprite *sprite)
+{
+    InitNpcForMovement(objectEvent, sprite, DIR_WEST, 1);
+    ObjectEventSetSingleMovement(objectEvent, sprite, GetWalkNormalMovementAction(objectEvent->facingDirection));
+    sprite->data[5] = 0;
+    sprite->data[6] = 0;
+    sprite->data[7] = 0;
+    sprite->sTypeFuncId = 1;
+    return TRUE;
+}
+
+bool8 MovementType_WalkInCircles_Step1(struct ObjectEvent *objectEvent, struct Sprite *sprite)
+{
+    s16 x, y;
+    int angle = sprite->data[7];
+    u8 direction = AngleToDirection(angle);
+
+    SetObjectEventDirection(objectEvent, direction);
+    StartSpriteAnimIfDifferent(sprite, GetWalkSlowMovementAction(direction));
+    sprite->sDirection = direction;
+
+    x = (Cos2(angle) * (objectEvent->rangeX * 8)) >> 8;
+    y = (Sin2(angle) * (objectEvent->rangeY * 8)) >> 8;
+
+    objectEvent->previousCoords.x = objectEvent->currentCoords.x;
+    objectEvent->previousCoords.y = objectEvent->currentCoords.y;
+    objectEvent->currentCoords.x = objectEvent->initialCoords.x + x;
+    objectEvent->currentCoords.y = objectEvent->initialCoords.y + y;
+
+    // UpdateObjectEventTookStep(objectEvent);
+    if (objectEvent->tookStep)
+    {
+        objectEvent->tookStep = FALSE;
+        objectEvent->triggerGroundEffectsOnMove = TRUE;
+        objectEvent->triggerGroundEffectsOnStop = TRUE;
+        DoGroundEffects_OnFinishStep(objectEvent, sprite);
+    }
+
+    if (sprite->data[5] == 0)
+        sprite->data[6] += 16;
+    else
+    {
+        sprite->data[5]--;
+        if (sprite->data[5] == 0)
+            objectEvent->moveBlocked = FALSE;
+    }
+
+    sprite->data[7] = sprite->data[6] >> 4;
+    if (sprite->data[6] >= 360 << 4)
+        sprite->data[6] -= 360 << 4;
+
+    if (!objectEvent->moveBlocked && GetCollisionInAngleWithDistance(objectEvent, sprite->data[7], 8))
+    {
+        objectEvent->moveBlocked = TRUE;
+        sprite->data[5] = 30;
+    }
+
+    return FALSE;
+}
+
 movement_type_def(MovementType_JogInPlace, gMovementTypeFuncs_JogInPlace)
 
 bool8 MovementType_JogInPlace_Step0(struct ObjectEvent *objectEvent, struct Sprite *sprite)
@@ -4797,28 +4932,27 @@ void SetStepAnim(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 anim
 
 u8 GetDirectionToFace(s16 x, s16 y, s16 targetX, s16 targetY)
 {
-    // TODO: is this correct?
-    if (x > targetX + 8)
+    if (x > targetX + OBJECT_EVENT_HITBOX_HALF)
     {
-        if (y > targetY + 8)
+        if (y > targetY + OBJECT_EVENT_HITBOX_HALF)
             return DIR_NORTHWEST;
-        else if (y < targetY - 8)
+        else if (y < targetY - OBJECT_EVENT_HITBOX_HALF)
             return DIR_SOUTHWEST;
 
         return DIR_WEST;
     }
 
-    if (x < targetX - 8)
+    if (x < targetX - OBJECT_EVENT_HITBOX_HALF)
     {
-        if (y > targetY + 8)
+        if (y > targetY + OBJECT_EVENT_HITBOX_HALF)
             return DIR_NORTHEAST;
-        else if (y < targetY - 8)
+        else if (y < targetY - OBJECT_EVENT_HITBOX_HALF)
             return DIR_SOUTHEAST;
 
         return DIR_EAST;
     }
 
-    if (y > targetY + 8)
+    if (y > targetY + OBJECT_EVENT_HITBOX_HALF)
         return DIR_NORTH;
 
     return DIR_SOUTH;
@@ -4838,12 +4972,28 @@ u8 GetTrainerFacingDirectionMovementType(u8 direction)
     return gTrainerFacingDirectionMovementTypes[direction];
 }
 
-static u8 GetCollisionInDirection(struct ObjectEvent *objectEvent, u8 direction)
+u8 GetCollisionInDirection(struct ObjectEvent *objectEvent, u8 direction)
 {
     s16 x = objectEvent->currentCoords.x;
     s16 y = objectEvent->currentCoords.y;
     MoveObjectEventCoords(direction, &x, &y);
     return GetCollisionAtCoords(objectEvent, x, y, direction);
+}
+
+u8 GetCollisionInAngle(struct ObjectEvent *objectEvent, int angle)
+{
+    s16 x = objectEvent->currentCoords.x;
+    s16 y = objectEvent->currentCoords.y;
+    MoveObjectEventCoordsByAngle(angle, &x, &y);
+    return GetCollisionAtCoords(objectEvent, x, y, objectEvent->movementDirection);
+}
+
+u8 GetCollisionInAngleWithDistance(struct ObjectEvent *objectEvent, int angle, int length)
+{
+    s16 x = objectEvent->currentCoords.x;
+    s16 y = objectEvent->currentCoords.y;
+    MoveCoordsByAngle(angle, length, &x, &y);
+    return GetCollisionAtCoords(objectEvent, x, y, objectEvent->movementDirection);
 }
 
 // FIXME: use the object event's hitbox for certain collisions
@@ -4990,9 +5140,25 @@ void MoveCoords(u8 direction, s16 *x, s16 *y)
 
 void MoveObjectEventCoords(u8 direction, s16 *x, s16 *y)
 {
-    // See the comment in CheckObjectEventCoordsHitboxXY
-    *x += sDirectionToVectors[direction].x * 8;
-    *y += sDirectionToVectors[direction].y * 8;
+    MoveObjectEventCoordsByAngle(sDirectionToAngles[direction], x, y);
+}
+
+void MoveObjectEventCoordsByAngle(int angle, s16 *x, s16 *y)
+{
+    MoveCoordsByAngle(angle, OBJECT_EVENT_HITBOX_SIZE >> 1, x, y);
+}
+
+void MoveCoordsByDistance(u8 direction, int length, s16 *x, s16 *y)
+{
+    int angle = sDirectionToAngles[direction];
+    *x += (Cos2(angle) * length) >> 8;
+    *y += (Sin2(angle) * length) >> 8;
+}
+
+void MoveCoordsByAngle(int angle, int length, s16 *x, s16 *y)
+{
+    *x += (Cos2(angle) * length) >> 8;
+    *y += (Sin2(angle) * length) >> 8;
 }
 
 void MoveCoordsInMapCoordIncrement(u8 direction, s16 *x, s16 *y)
@@ -5029,8 +5195,8 @@ void SetSpritePosToMapCoords(s16 mapX, s16 mapY, s16 *destX, s16 *destY)
     s16 dx = -gTotalCameraPixelOffsetX;
     s16 dy = -gTotalCameraPixelOffsetY;
 
-    *destX = (mapX - gSaveBlock1Ptr->pos.x) + dx;
-    *destY = (mapY - gSaveBlock1Ptr->pos.y) + dy;
+    *destX = ((mapX - gSaveBlock1Ptr->pos.x) >> OBJECT_EVENT_FRAC_SHIFT) + dx;
+    *destY = ((mapY - gSaveBlock1Ptr->pos.y) >> OBJECT_EVENT_FRAC_SHIFT) + dy;
 }
 
 void SetSpritePosToOffsetMapCoords(s16 *x, s16 *y, s16 dx, s16 dy)
@@ -5045,7 +5211,7 @@ void ObjectEventMoveDestCoords(struct ObjectEvent *objectEvent, u32 direction, s
     u8 newDirn = direction;
     *x = objectEvent->currentCoords.x;
     *y = objectEvent->currentCoords.y;
-    MoveCoords(newDirn, x, y);
+    MoveObjectEventCoords(newDirn, x, y);
 }
 
 bool8 ObjectEventIsMovementOverridden(struct ObjectEvent *objectEvent)
@@ -5110,7 +5276,8 @@ void ObjectEventClearHeldMovement(struct ObjectEvent *objectEvent)
     objectEvent->heldMovementActive = FALSE;
     objectEvent->heldMovementFinished = FALSE;
     objectEvent->moveBlocked = FALSE;
-    ClearObjectEventTargetCoords(objectEvent);
+    objectEvent->isMidAir = FALSE;
+    StopObjectEventMovement(objectEvent);
     gSprites[objectEvent->spriteId].sTypeFuncId = 0;
     gSprites[objectEvent->spriteId].sActionFuncId = 0;
 }
@@ -5155,6 +5322,7 @@ void UpdateObjectEventCurrentMovement(struct ObjectEvent *objectEvent, struct Sp
     UpdateObjectEventSpriteAnimPause(objectEvent, sprite);
     UpdateObjectEventVisibility(objectEvent, sprite);
     ObjectEventUpdateSubpriority(objectEvent, sprite);
+    UpdateObjectEventSpriteCoords(objectEvent);
 }
 
 #define dirn_to_anim(name, table)\
@@ -5350,7 +5518,7 @@ static bool8 UpdateMovementNormal(struct ObjectEvent *objectEvent, struct Sprite
     if (NpcTakeStep(objectEvent, sprite))
     {
         ShiftStillObjectEventCoords(objectEvent);
-        ClearObjectEventTargetCoords(objectEvent);
+        StopObjectEventMovement(objectEvent);
         objectEvent->triggerGroundEffectsOnStop = TRUE;
         sprite->animPaused = TRUE;
         return TRUE;
@@ -5360,14 +5528,7 @@ static bool8 UpdateMovementNormal(struct ObjectEvent *objectEvent, struct Sprite
 
 static void InitNpcForWalkSlow(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 direction)
 {
-    s16 x;
-    s16 y;
-
-    x = objectEvent->currentCoords.x;
-    y = objectEvent->currentCoords.y;
     SetObjectEventDirection(objectEvent, direction);
-    MoveCoords(direction, &x, &y);
-    ShiftObjectEventCoords(objectEvent, x, y);
     SetWalkSlowSpriteData(sprite, direction);
     sprite->animPaused = FALSE;
     objectEvent->triggerGroundEffectsOnMove = TRUE;
@@ -5385,7 +5546,7 @@ static bool8 UpdateWalkSlow(struct ObjectEvent *objectEvent, struct Sprite *spri
     if (UpdateWalkSlowAnim(objectEvent, sprite))
     {
         ShiftStillObjectEventCoords(objectEvent);
-        ClearObjectEventTargetCoords(objectEvent);
+        StopObjectEventMovement(objectEvent);
         objectEvent->triggerGroundEffectsOnStop = TRUE;
         sprite->animPaused = TRUE;
         return TRUE;
@@ -5664,6 +5825,7 @@ static void InitJump(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 
     SetJumpSpriteData(sprite, direction, distance, type);
     sprite->sActionFuncId = 1;
     sprite->animPaused = FALSE;
+    objectEvent->isMidAir = TRUE;
     objectEvent->triggerGroundEffectsOnMove = TRUE;
     objectEvent->disableCoveringGroundEffects = TRUE;
 }
@@ -5693,11 +5855,14 @@ static u8 UpdateJumpAnim(struct ObjectEvent *objectEvent, struct Sprite *sprite,
     }
     else if (result == JUMP_FINISHED)
     {
-        ClearObjectEventTargetCoords(objectEvent);
+        StopObjectEventMovement(objectEvent);
+        objectEvent->isMidAir = FALSE;
         objectEvent->triggerGroundEffectsOnStop = TRUE;
         objectEvent->landingJump = TRUE;
         sprite->animPaused = TRUE;
     }
+    else
+        objectEvent->isMidAir = TRUE;
     return result;
 }
 
@@ -7039,7 +7204,7 @@ bool8 DoFigure8Anim(struct ObjectEvent *objectEvent, struct Sprite *sprite)
     if (AnimateSpriteInFigure8(sprite))
     {
         ShiftStillObjectEventCoords(objectEvent);
-        ClearObjectEventTargetCoords(objectEvent);
+        StopObjectEventMovement(objectEvent);
         objectEvent->triggerGroundEffectsOnStop = TRUE;
         sprite->animPaused = TRUE;
         return TRUE;
@@ -7853,14 +8018,14 @@ static u8 ObjectEventGetNearbyReflectionType(struct ObjectEvent *objEvent)
     s16 height = (info->height + 8) >> 4;
     s16 i, j;
     u8 result, b; // used by RETURN_REFLECTION_TYPE_AT
-    s16 one = OBJECT_EVENT_COORD_UNIT;
+    s16 one = (1 << OBJECT_EVENT_COORD_SHIFT);
     s32 currCoordsX = objEvent->currentCoords.x;
     s32 currCoordsY = objEvent->currentCoords.y;
 
-    for (i = 0; i < height; i++)
+    for (i = 0; i < height + 2; i++)
     {
         RETURN_REFLECTION_TYPE_AT(currCoordsX, currCoordsY + one + GRID_TO_COORDS(i));
-        for (j = 1; j < width; j++)
+        for (j = 1; j < width + 2; j++)
         {
             RETURN_REFLECTION_TYPE_AT(currCoordsX + GRID_TO_COORDS(j), currCoordsY + one + GRID_TO_COORDS(i));
             RETURN_REFLECTION_TYPE_AT(currCoordsX - GRID_TO_COORDS(j), currCoordsY + one + GRID_TO_COORDS(i));
@@ -8495,62 +8660,87 @@ void UnfreezeObjectEvents(void)
             UnfreezeObjectEvent(&gObjectEvents[i]);
 }
 
-static void MoveObjectEvent(struct ObjectEvent *objectEvent, struct Sprite *sprite, int x, int y)
+static void DoObjectEventMovement(struct ObjectEvent *objectEvent, struct Sprite *sprite, u16 speed, u16 angle)
 {
-    int pixelsMovedX, pixelsMovedY;
+    int x, y;
 
     if (objectEvent->moveBlocked)
         return;
 
+    x = Cos2(angle) >> 8;
+    y = Sin2(angle) >> 8;
+    x = (x * speed) >> 8;
+    y = (y * speed) >> 8;
+
+    objectEvent->previousCoords.x = objectEvent->currentCoords.x;
+    objectEvent->previousCoords.y = objectEvent->currentCoords.y;
     objectEvent->currentCoords.x += x;
     objectEvent->currentCoords.y += y;
 
-    pixelsMovedX = (int)objectEvent->pixelsMovedX;
-    pixelsMovedY = (int)objectEvent->pixelsMovedY;
-    pixelsMovedX += x;
-    pixelsMovedY += y;
+    UpdateObjectEventTookStep(objectEvent, x, y);
+}
 
-    if (pixelsMovedX < 0)
+void MoveObjectEventAtSpeed(struct ObjectEvent *objectEvent, u16 speed, u16 angle)
+{
+    DoObjectEventMovement(objectEvent, &gSprites[objectEvent->spriteId], speed, angle);
+}
+
+void UpdateObjectEventTookStep(struct ObjectEvent *objectEvent, int x, int y)
+{
+    s16 moveX = objectEvent->pixelsMoved.x + x;
+    s16 moveY = objectEvent->pixelsMoved.y + y;
+
+    if (moveX < 0)
     {
-        objectEvent->pixelsMovedX += 16;
+        objectEvent->pixelsMoved.x += 16 << OBJECT_EVENT_FRAC_SHIFT;
         objectEvent->tookStep = TRUE;
     }
-    else if (pixelsMovedX >= 16)
+    else if (moveX >= 16 << OBJECT_EVENT_FRAC_SHIFT)
     {
-        objectEvent->pixelsMovedX -= 16;
+        objectEvent->pixelsMoved.x -= 16 << OBJECT_EVENT_FRAC_SHIFT;
         objectEvent->tookStep = TRUE;
     }
     else
-        objectEvent->pixelsMovedX = (u8)pixelsMovedX;
+        objectEvent->pixelsMoved.x = moveX;
 
-    if (pixelsMovedY < 0)
+    if (moveY < 0)
     {
-        objectEvent->pixelsMovedY += 16;
+        objectEvent->pixelsMoved.y += 16 << OBJECT_EVENT_FRAC_SHIFT;
         objectEvent->tookStep = TRUE;
     }
-    else if (pixelsMovedY >= 16)
+    else if (moveY >= 16 << OBJECT_EVENT_FRAC_SHIFT)
     {
-        objectEvent->pixelsMovedY -= 16;
+        objectEvent->pixelsMoved.y -= 16 << OBJECT_EVENT_FRAC_SHIFT;
         objectEvent->tookStep = TRUE;
     }
     else
-        objectEvent->pixelsMovedY = (u8)pixelsMovedY;
-
-    sprite->x += x;
-    sprite->y += y;
+        objectEvent->pixelsMoved.y = moveY;
 }
 
 static void MoveToCoords(struct ObjectEvent *objectEvent, struct Sprite *sprite, int speed)
 {
-    int moveX = 0;
-    int moveY = 0;
-    int totalMovementX;
-    int totalMovementY;
-    int targetCoordsX = objectEvent->targetCoords.x;
-    int targetCoordsY = objectEvent->targetCoords.y;
+    int currentCoordsX;
+    int currentCoordsY;
+    int targetCoordsX;
+    int targetCoordsY;
     int destinationCoordsX;
     int destinationCoordsY;
+    int angle;
 
+    int moveX;
+    int moveY;
+    int totalMovementX;
+    int totalMovementY;
+
+    if (objectEvent->moveBlocked)
+        return;
+
+    targetCoordsX = objectEvent->targetCoords.x;
+    targetCoordsY = objectEvent->targetCoords.y;
+    moveX = 0;
+    moveY = 0;
+
+    // ugh
     if (objectEvent->currentCoords.x < targetCoordsX)
     {
         moveX = 1;
@@ -8569,8 +8759,8 @@ static void MoveToCoords(struct ObjectEvent *objectEvent, struct Sprite *sprite,
         moveY = -1;
     }
 
-    totalMovementX = moveX * speed;
-    totalMovementY = moveY * speed;
+    totalMovementX = (moveX << OBJECT_EVENT_FRAC_SHIFT) * speed;
+    totalMovementY = (moveY << OBJECT_EVENT_FRAC_SHIFT) * speed;
     destinationCoordsX = objectEvent->currentCoords.x + totalMovementX;
     destinationCoordsY = objectEvent->currentCoords.y + totalMovementY;
 
@@ -8592,7 +8782,10 @@ static void MoveToCoords(struct ObjectEvent *objectEvent, struct Sprite *sprite,
         totalMovementY += targetCoordsY - destinationCoordsY;
     }
 
-    MoveObjectEvent(objectEvent, sprite, totalMovementX, totalMovementY);
+    objectEvent->currentCoords.x += totalMovementX;
+    objectEvent->currentCoords.y += totalMovementY;
+
+    UpdateObjectEventTookStep(objectEvent, totalMovementX, totalMovementY);
 }
 
 static void Step1(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 dir)
@@ -8603,9 +8796,7 @@ static void Step1(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 dir
         return;
     }
 
-    MoveObjectEvent(objectEvent, sprite,
-        sDirectionToVectors[dir].x,
-        sDirectionToVectors[dir].y);
+    DoObjectEventMovement(objectEvent, sprite, 1 << OBJECT_EVENT_COORD_SHIFT, sDirectionToAngles[dir]);
 }
 
 static void Step2(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 dir)
@@ -8616,9 +8807,7 @@ static void Step2(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 dir
         return;
     }
 
-    MoveObjectEvent(objectEvent, sprite,
-        2 * (u16) sDirectionToVectors[dir].x,
-        2 * (u16) sDirectionToVectors[dir].y);
+    DoObjectEventMovement(objectEvent, sprite, 2 << OBJECT_EVENT_COORD_SHIFT, sDirectionToAngles[dir]);
 }
 
 static void Step3(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 dir)
@@ -8629,9 +8818,7 @@ static void Step3(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 dir
         return;
     }
 
-    MoveObjectEvent(objectEvent, sprite,
-        2 * (u16) sDirectionToVectors[dir].x + (u16) sDirectionToVectors[dir].x,
-        2 * (u16) sDirectionToVectors[dir].y + (u16) sDirectionToVectors[dir].y);
+    DoObjectEventMovement(objectEvent, sprite, 3 << OBJECT_EVENT_COORD_SHIFT, sDirectionToAngles[dir]);
 }
 
 static void Step4(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 dir)
@@ -8642,9 +8829,7 @@ static void Step4(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 dir
         return;
     }
 
-    MoveObjectEvent(objectEvent, sprite,
-        4 * (u16) sDirectionToVectors[dir].x,
-        4 * (u16) sDirectionToVectors[dir].y);
+    DoObjectEventMovement(objectEvent, sprite, 4 << OBJECT_EVENT_COORD_SHIFT, sDirectionToAngles[dir]);
 }
 
 static void Step8(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 dir)
@@ -8655,9 +8840,7 @@ static void Step8(struct ObjectEvent *objectEvent, struct Sprite *sprite, u8 dir
         return;
     }
 
-    MoveObjectEvent(objectEvent, sprite,
-        8 * (u16) sDirectionToVectors[dir].x,
-        8 * (u16) sDirectionToVectors[dir].y);
+    DoObjectEventMovement(objectEvent, sprite, 8 << OBJECT_EVENT_COORD_SHIFT, sDirectionToAngles[dir]);
 }
 
 #define sSpeed data[4]

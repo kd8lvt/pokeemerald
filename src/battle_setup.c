@@ -364,6 +364,12 @@ static void Task_BattleStart(u8 taskId)
     case 1:
         if (IsBattleTransitionDone() == TRUE)
         {
+            if (CalculatePlayerPartyCount() == 0)
+            {
+                SetMainCallback2(gMain.savedCallback);
+                DestroyTask(taskId);
+                break;
+            }
             CleanupOverworldWindowsAndTilemaps();
             SetMainCallback2(CB2_InitBattle);
             RestartWildEncounterImmunitySteps();

@@ -321,12 +321,10 @@ static bool8 CheckGrassEffectObjectMovedAway(u8 objectEventId, struct Sprite *sp
 
     s16 coordsX = COORDS_TO_GRID(objectEvent->currentCoords.x);
     s16 coordsY = COORDS_TO_GRID(objectEvent->currentCoords.y);
-    s16 prevCoordsX = COORDS_TO_GRID(objectEvent->previousCoords.x);
-    s16 prevCoordsY = COORDS_TO_GRID(objectEvent->previousCoords.y);
     s16 spriteX = COORDS_TO_GRID(sprite->sX);
     s16 spriteY = COORDS_TO_GRID(sprite->sY);
 
-    if ((coordsX != spriteX || coordsY != spriteY) && (prevCoordsX != spriteX || prevCoordsY != spriteY))
+    if (coordsX != spriteX || coordsY != spriteY)
         return TRUE;
 
     return FALSE;
@@ -344,8 +342,8 @@ void UpdateTallGrassFieldEffect(struct Sprite *sprite)
     mapGroup = sprite->sCurrentMap;
     if (gCamera.active && (gSaveBlock1Ptr->location.mapNum != mapNum || gSaveBlock1Ptr->location.mapGroup != mapGroup))
     {
-        sprite->sX -= gCamera.x;
-        sprite->sY -= gCamera.y;
+        sprite->sX -= gCamera.x >> OBJECT_EVENT_FRAC_SHIFT;
+        sprite->sY -= gCamera.y >> OBJECT_EVENT_FRAC_SHIFT;
         sprite->sCurrentMap = ((u8)gSaveBlock1Ptr->location.mapNum << 8) | (u8)gSaveBlock1Ptr->location.mapGroup;
     }
     localId = sprite->sLocalId;
@@ -456,8 +454,8 @@ void UpdateLongGrassFieldEffect(struct Sprite *sprite)
     mapGroup = sprite->sCurrentMap;
     if (gCamera.active && (gSaveBlock1Ptr->location.mapNum != mapNum || gSaveBlock1Ptr->location.mapGroup != mapGroup))
     {
-        sprite->sX -= gCamera.x;
-        sprite->sY -= gCamera.y;
+        sprite->sX -= gCamera.x >> OBJECT_EVENT_FRAC_SHIFT;
+        sprite->sY -= gCamera.y >> OBJECT_EVENT_FRAC_SHIFT;
         sprite->sCurrentMap = ((u8)gSaveBlock1Ptr->location.mapNum << 8) | (u8)gSaveBlock1Ptr->location.mapGroup;
     }
     localId = sprite->sLocalId;

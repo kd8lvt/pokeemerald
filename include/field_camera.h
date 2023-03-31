@@ -23,7 +23,7 @@ void SetCameraPosition(int x, int y);
 void OffsetCameraPositionForTransition(int x, int y);
 void ResetFieldCamera(void);
 void ResetCameraUpdateInfo(void);
-u32 InitCameraUpdateCallback(u8 trackedSpriteId);
+u32 InitCameraUpdateCallback(u8 trackedObjectEventId);
 void CameraUpdate(void);
 void SetCameraPanningCallback(void (*callback)(void));
 void SetCameraPanning(s16 horizontal, s16 vertical);

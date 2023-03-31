@@ -40,7 +40,6 @@ static EWRAM_DATA u16 sPrevMetatileBehavior = 0;
 
 u8 gSelectedObjectEvent;
 
-static void GetPlayerPosition(struct MapPosition *);
 static void GetInFrontOfPlayerPosition(struct MapPosition *);
 static void GetOneStepFromPlayerPosition(struct MapPosition *, u8 direction);
 static u16 GetPlayerCurMetatileBehavior(int);
@@ -57,7 +56,6 @@ static bool8 CheckStandardWildEncounter(u16);
 static bool8 TryArrowWarp(struct MapPosition *, u16, u8);
 static bool8 IsWarpMetatileBehavior(u16);
 static bool8 IsArrowWarpMetatileBehavior(u16, u8);
-static s8 GetWarpEventAtMapPosition(struct MapHeader *, struct MapPosition *);
 static void SetupWarp(struct MapHeader *, s8, struct MapPosition *);
 static bool8 TryDoorWarp(struct MapPosition *, u16, u8);
 static s8 GetWarpEventAtPosition(struct MapHeader *, u16, u16, u8);
@@ -216,7 +214,7 @@ int ProcessPlayerFieldInput(struct FieldInput *input)
     return FALSE;
 }
 
-static void GetPlayerPosition(struct MapPosition *position)
+void GetPlayerPosition(struct MapPosition *position)
 {
     PlayerGetDestCoords(&position->x, &position->y);
     position->elevation = PlayerGetElevation();
@@ -759,6 +757,10 @@ static bool8 TryStartWarpEventScript(struct MapPosition *position, u16 metatileB
     s8 warpEventId = GetWarpEventAtMapPosition(&gMapHeader, position);
     if (warpEventId != WARP_ID_NONE && IsWarpMetatileBehavior(metatileBehavior) == TRUE)
     {
+        // If you spawned on top of a warp, don't immediately take it
+        if (gPlayerAvatar.spawnWarpEventId == warpEventId)
+            return FALSE;
+
         StoreInitialPlayerAvatarState();
         SetupWarp(&gMapHeader, warpEventId, position);
         if (MetatileBehavior_IsEscalator(metatileBehavior) == TRUE)
@@ -842,7 +844,7 @@ static bool8 IsArrowWarpMetatileBehavior(u16 metatileBehavior, u8 direction)
     return FALSE;
 }
 
-static s8 GetWarpEventAtMapPosition(struct MapHeader *mapHeader, struct MapPosition *position)
+s8 GetWarpEventAtMapPosition(struct MapHeader *mapHeader, struct MapPosition *position)
 {
     return GetWarpEventAtPosition(mapHeader, COORDS_TO_GRID(position->x) - MAP_OFFSET, COORDS_TO_GRID(position->y) - MAP_OFFSET, position->elevation);
 }
@@ -992,8 +994,8 @@ static struct BgEvent *GetBackgroundEventAtPosition(struct MapHeader *mapHeader,
     {
         s16 bgX = GRID_TO_TILE_CENTER((s16)bgEvents[i].x);
         s16 bgY = GRID_TO_TILE_CENTER((s16)bgEvents[i].y);
-        if (x >= bgX - 8 && x <= bgX + 8
-         && y >= bgY - 8 && y <= bgY + 8)
+        if (x >= bgX - OBJECT_EVENT_HITBOX_HALF && x <= bgX + OBJECT_EVENT_HITBOX_HALF
+         && y >= bgY - OBJECT_EVENT_HITBOX_HALF && y <= bgY + OBJECT_EVENT_HITBOX_HALF)
         {
             if (bgEvents[i].elevation == elevation || bgEvents[i].elevation == 0)
                 return &bgEvents[i];

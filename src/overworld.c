@@ -1441,16 +1441,24 @@ static void DoCB1_Overworld(u16 newKeys, u16 heldKeys)
     {
         if (ProcessPlayerFieldInput(&inputStruct) == TRUE)
         {
+            if (gPlayerAvatar.changedTile)
+                UpdatePlayerAvatarTileInfo();
             LockPlayerFieldControls();
             HideMapNamePopUpWindow();
         }
         else
         {
+            if (gPlayerAvatar.changedTile)
+                UpdatePlayerAvatarTileInfo();
             PlayerStep(direction, newKeys, heldKeys);
         }
     }
     else
+    {
         PlayerCheckNotMoving(direction);
+        if (gPlayerAvatar.changedTile)
+            UpdatePlayerAvatarTileInfo();
+    }
 
     // if the player's movement was blocked, try doing arrow warps
     if (gPlayerAvatar.moveBlocked == TRUE)
@@ -2178,6 +2186,8 @@ static void InitObjectEventsLocal(void)
     ResetInitialPlayerAvatarState();
     TrySpawnObjectEvents();
     TryRunOnWarpIntoMapScript();
+    ObjectEventUpdateElevation(&gObjectEvents[gPlayerAvatar.objectEventId]);
+    UpdatePlayerAvatarTileInfo();
 }
 
 static void InitObjectEventsReturnToField(void)
@@ -2190,18 +2200,18 @@ static void InitObjectEventsReturnToField(void)
 static void SetCameraToTrackPlayer(void)
 {
     gObjectEvents[gPlayerAvatar.objectEventId].trackedByCamera = TRUE;
-    InitCameraUpdateCallback(gPlayerAvatar.spriteId);
+    InitCameraUpdateCallback(gPlayerAvatar.objectEventId);
 }
 
 static void SetCameraToTrackGuestPlayer(void)
 {
-    InitCameraUpdateCallback(GetSpriteForLinkedPlayer(gLocalLinkPlayerId));
+    InitCameraUpdateCallback(gLinkPlayerObjectEvents[gLocalLinkPlayerId].objEventId);
 }
 
 // Duplicate function.
 static void SetCameraToTrackGuestPlayer_2(void)
 {
-    InitCameraUpdateCallback(GetSpriteForLinkedPlayer(gLocalLinkPlayerId));
+    InitCameraUpdateCallback(gLinkPlayerObjectEvents[gLocalLinkPlayerId].objEventId);
 }
 
 static void OffsetCameraFocusByLinkPlayerId(void)

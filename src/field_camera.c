@@ -16,8 +16,8 @@ EWRAM_DATA bool8 gUnusedBikeCameraAheadPanback = FALSE;
 
 struct FieldCameraOffset
 {
-    u8 xPixelOffset;
-    u8 yPixelOffset;
+    u16 xPixelOffset;
+    u16 yPixelOffset;
     u8 xTileOffset;
     u8 yTileOffset;
     bool8 copyBGToVRAM;
@@ -67,10 +67,11 @@ void SetCameraPosition(int x, int y)
 
 void OffsetCameraPosition(int x, int y)
 {
+    gTotalCameraPixelOffsetX = -(gSaveBlock1Ptr->pos.x >> OBJECT_EVENT_FRAC_SHIFT);
+    gTotalCameraPixelOffsetY = -(gSaveBlock1Ptr->pos.y >> OBJECT_EVENT_FRAC_SHIFT);
+
     sCameraPosition.x += x;
     sCameraPosition.y += y;
-    gTotalCameraPixelOffsetX -= x;
-    gTotalCameraPixelOffsetY -= y;
 
     sFieldCameraOffset.xPixelOffset += x;
     sFieldCameraOffset.yPixelOffset += y;
@@ -83,6 +84,8 @@ void OffsetCameraPositionForTransition(int x, int y)
     sCameraPosition.y -= y;
     gFieldCamera.x -= x;
     gFieldCamera.y -= y;
+    gSprites[gFieldCamera.spriteId].x -= x;
+    gSprites[gFieldCamera.spriteId].y -= y;
 }
 
 void ResetFieldCamera(void)
@@ -94,8 +97,8 @@ void ResetFieldCamera(void)
 void FieldUpdateBgTilemapScroll(void)
 {
     u32 r4, r5;
-    r5 = sFieldCameraOffset.xPixelOffset + sHorizontalCameraPan - 8;
-    r4 = sFieldCameraOffset.yPixelOffset + sVerticalCameraPan;
+    r5 = (sFieldCameraOffset.xPixelOffset >> OBJECT_EVENT_FRAC_SHIFT) + sHorizontalCameraPan - 8;
+    r4 = (sFieldCameraOffset.yPixelOffset >> OBJECT_EVENT_FRAC_SHIFT) + sVerticalCameraPan;
 
     SetGpuReg(REG_OFFSET_BG1HOFS, r5);
     SetGpuReg(REG_OFFSET_BG1VOFS, r4);
@@ -107,8 +110,8 @@ void FieldUpdateBgTilemapScroll(void)
 
 void GetCameraOffsetWithPan(s16 *x, s16 *y)
 {
-    *x = sFieldCameraOffset.xPixelOffset + sHorizontalCameraPan - 8;
-    *y = sFieldCameraOffset.yPixelOffset + sVerticalCameraPan;
+    *x = (sFieldCameraOffset.xPixelOffset >> OBJECT_EVENT_FRAC_SHIFT) + sHorizontalCameraPan - 8;
+    *y = (sFieldCameraOffset.yPixelOffset >> OBJECT_EVENT_FRAC_SHIFT) + sVerticalCameraPan;
 }
 
 void DrawWholeMapView(void)
@@ -496,11 +499,11 @@ void ResetCameraUpdateInfo(void)
     gFieldCamera.callback = NULL;
 }
 
-u32 InitCameraUpdateCallback(u8 trackedSpriteId)
+u32 InitCameraUpdateCallback(u8 trackedObjectEventId)
 {
     if (gFieldCamera.spriteId != 0)
         DestroySprite(&gSprites[gFieldCamera.spriteId]);
-    gFieldCamera.spriteId = AddCameraObject(trackedSpriteId);
+    gFieldCamera.spriteId = AddCameraObject(trackedObjectEventId);
     gFieldCamera.callback = CameraUpdateCallback;
     return 0;
 }
@@ -520,18 +523,18 @@ void CameraUpdate(void)
     gFieldCamera.x += movementSpeedX;
     gFieldCamera.y += movementSpeedY;
 
-#if 0
+#if 1
     deltaX = gFieldCamera.x - sCameraPosition.x;
     deltaY = gFieldCamera.y - sCameraPosition.y;
 
-    movementSpeedX = (deltaX * 0x10000) / 0x34B00;
-    movementSpeedY = (deltaY * 0x10000) / 0x34B00;
+    movementSpeedX = deltaX >> 3;
+    movementSpeedY = deltaY >> 3;
 #endif
 
     if (movementSpeedX != 0 || movementSpeedY != 0)
     {
-        OffsetCameraPosition(movementSpeedX, movementSpeedY);
         CameraMove(movementSpeedX, movementSpeedY);
+        OffsetCameraPosition(movementSpeedX, movementSpeedY);
         UpdateObjectEventsForCameraUpdate();
         SetBerryTreesSeen();
         RotatingGatePuzzleCameraUpdate();
