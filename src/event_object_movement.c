@@ -5192,11 +5192,13 @@ void GetMapCoordsFromSpritePos(s16 x, s16 y, s16 *destX, s16 *destY)
 
 void SetSpritePosToMapCoords(s16 mapX, s16 mapY, s16 *destX, s16 *destY)
 {
+    s16 px = mapX - gSaveBlock1Ptr->pos.x;
+    s16 py = mapY - gSaveBlock1Ptr->pos.y;
     s16 dx = -gTotalCameraPixelOffsetX;
     s16 dy = -gTotalCameraPixelOffsetY;
 
-    *destX = ((mapX - gSaveBlock1Ptr->pos.x) >> OBJECT_EVENT_FRAC_SHIFT) + dx;
-    *destY = ((mapY - gSaveBlock1Ptr->pos.y) >> OBJECT_EVENT_FRAC_SHIFT) + dy;
+    *destX = (((px + 0x7F) >> OBJECT_EVENT_FRAC_SHIFT) + dx) - 8;
+    *destY = (((py + 0x7F) >> OBJECT_EVENT_FRAC_SHIFT) + dy) - 8;
 }
 
 void SetSpritePosToOffsetMapCoords(s16 *x, s16 *y, s16 dx, s16 dy)
