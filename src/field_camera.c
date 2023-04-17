@@ -523,7 +523,7 @@ void CameraUpdate(void)
     gFieldCamera.x += movementSpeedX;
     gFieldCamera.y += movementSpeedY;
 
-#if 1
+#if 0
     deltaX = gFieldCamera.x - sCameraPosition.x;
     deltaY = gFieldCamera.y - sCameraPosition.y;
 
