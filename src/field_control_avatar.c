@@ -61,7 +61,7 @@ static bool8 TryDoorWarp(struct MapPosition *, u16, u8);
 static s8 GetWarpEventAtPosition(struct MapHeader *, u16, u16, u8);
 static u8 *GetCoordEventScriptAtPosition(struct MapHeader *, u16, u16, u8);
 static struct BgEvent *GetBackgroundEventAtPosition(struct MapHeader *, u16, u16, u8);
-static bool8 TryStartCoordEventScript(struct MapPosition *, u8);
+static bool8 TryStartCoordEventScript(struct MapPosition *);
 static bool8 TryStartWarpEventScript(struct MapPosition *, u16);
 static bool8 TryStartMiscWalkingScripts(u16);
 static bool8 TryStartStepCountScript(u16);
@@ -92,7 +92,7 @@ void FieldGetPlayerInput(struct FieldInput *input, u16 newKeys, u16 heldKeys)
     bool8 forcedMove = MetatileBehavior_IsForcedMovementTile(GetPlayerCurMetatileBehavior(runningState));
     u16 heldMoveKeys = (heldKeys & (DPAD_UP | DPAD_DOWN | DPAD_LEFT | DPAD_RIGHT));
 
-    if ((tileTransitionState == T_TILE_CENTER && forcedMove == FALSE) || tileTransitionState == T_NOT_MOVING)
+    if (((tileTransitionState == T_TILE_CENTER && forcedMove == FALSE) || tileTransitionState == T_NOT_MOVING) && heldMoveKeys == 0)
     {
         if (GetPlayerSpeed() != PLAYER_SPEED_FASTEST)
         {
@@ -105,20 +105,21 @@ void FieldGetPlayerInput(struct FieldInput *input, u16 newKeys, u16 heldKeys)
             if (newKeys & B_BUTTON)
                 input->pressedBButton = TRUE;
         }
+    }
 
-        if (heldMoveKeys)
-        {
-            input->heldDirection = TRUE;
-            input->heldDirection2 = TRUE;
-        }
+    if (heldMoveKeys)
+    {
+        input->heldDirection = TRUE;
+        input->heldDirection2 = TRUE;
     }
 
     if (forcedMove == FALSE)
     {
-        if (tileTransitionState == T_TILE_CENTER && runningState == MOVING)
+        if (gPlayerAvatar.changedTile)
+        {
             input->tookStep = TRUE;
-        if (forcedMove == FALSE && tileTransitionState == T_TILE_CENTER)
             input->checkStandardWildEncounter = TRUE;
+        }
     }
 
     if (heldMoveKeys == (DPAD_UP | DPAD_LEFT))
@@ -169,7 +170,7 @@ int ProcessPlayerFieldInput(struct FieldInput *input)
     }
     if (input->heldDirection && input->dpadDirection == playerDirection)
     {
-        if (TryStartCoordEventScript(&position, playerDirection) == TRUE)
+        if (TryStartCoordEventScript(&position) == TRUE)
             return TRUE;
         if (TryStartWarpEventScript(&position, metatileBehavior) == TRUE)
             return TRUE;
@@ -526,7 +527,7 @@ static bool8 TryStartStepBasedScript(struct MapPosition *position, u16 metatileB
     return FALSE;
 }
 
-static bool8 TryStartCoordEventScript(struct MapPosition *position, u8 playerDirection)
+static bool8 TryStartCoordEventScript(struct MapPosition *position)
 {
     u8 *script = GetCoordEventScriptAtPosition(&gMapHeader, COORDS_TO_GRID(position->x) - MAP_OFFSET, COORDS_TO_GRID(position->y) - MAP_OFFSET, position->elevation);
 
