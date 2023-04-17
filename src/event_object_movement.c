@@ -4692,59 +4692,12 @@ bool8 MovementType_WalkInCircles_Step0(struct ObjectEvent *objectEvent, struct S
 {
     InitNpcForMovement(objectEvent, sprite, DIR_WEST, 1);
     ObjectEventSetSingleMovement(objectEvent, sprite, GetWalkNormalMovementAction(objectEvent->facingDirection));
-    sprite->data[5] = 0;
-    sprite->data[6] = 0;
-    sprite->data[7] = 0;
     sprite->sTypeFuncId = 1;
     return TRUE;
 }
 
 bool8 MovementType_WalkInCircles_Step1(struct ObjectEvent *objectEvent, struct Sprite *sprite)
 {
-    s16 x, y;
-    int angle = sprite->data[7];
-    u8 direction = AngleToDirection(angle);
-
-    SetObjectEventDirection(objectEvent, direction);
-    StartSpriteAnimIfDifferent(sprite, GetWalkSlowMovementAction(direction));
-    sprite->sDirection = direction;
-
-    x = (Cos2(angle) * (objectEvent->rangeX * 8)) >> 8;
-    y = (Sin2(angle) * (objectEvent->rangeY * 8)) >> 8;
-
-    objectEvent->previousCoords.x = objectEvent->currentCoords.x;
-    objectEvent->previousCoords.y = objectEvent->currentCoords.y;
-    objectEvent->currentCoords.x = objectEvent->initialCoords.x + x;
-    objectEvent->currentCoords.y = objectEvent->initialCoords.y + y;
-
-    // UpdateObjectEventTookStep(objectEvent);
-    if (objectEvent->tookStep)
-    {
-        objectEvent->tookStep = FALSE;
-        objectEvent->triggerGroundEffectsOnMove = TRUE;
-        objectEvent->triggerGroundEffectsOnStop = TRUE;
-        DoGroundEffects_OnFinishStep(objectEvent, sprite);
-    }
-
-    if (sprite->data[5] == 0)
-        sprite->data[6] += 16;
-    else
-    {
-        sprite->data[5]--;
-        if (sprite->data[5] == 0)
-            objectEvent->moveBlocked = FALSE;
-    }
-
-    sprite->data[7] = sprite->data[6] >> 4;
-    if (sprite->data[6] >= 360 << 4)
-        sprite->data[6] -= 360 << 4;
-
-    if (!objectEvent->moveBlocked && GetCollisionInAngleWithDistance(objectEvent, sprite->data[7], 8))
-    {
-        objectEvent->moveBlocked = TRUE;
-        sprite->data[5] = 30;
-    }
-
     return FALSE;
 }
 
