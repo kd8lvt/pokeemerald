@@ -40,3 +40,4 @@ prefabs.json
 *.sym
 *.js
 src/pokeemerald.code-workspace
+kdbuild
